@@ -1015,7 +1015,7 @@ Baseline: Pi Senior Frontend Default Design
 
 ## Goal
 
-${goal || `Implement ${phase.name} with senior frontend quality using the project DESIGN.md and Pi Senior Frontend Default assumptions.`}
+${goal || "Implement " + phase.name + " with senior frontend quality using the project DESIGN.md and Pi Senior Frontend Default assumptions."}
 
 ## Default assumption mode
 
@@ -1109,13 +1109,13 @@ User did not provide complete visual details unless this spec says otherwise. Ap
 
 ## Acceptance criteria
 
-- [ ] UI matches `.pi-factory/DESIGN.md` or documents a local exception here.
+- [ ] UI matches \`.pi-factory/DESIGN.md\` or documents a local exception here.
 - [ ] All declared states are implemented or explicitly marked not applicable with reason.
 - [ ] Mobile/tablet/desktop behavior is verified.
 - [ ] Copy avoids generic patterns and describes outcomes/recovery.
 - [ ] Keyboard/focus/label accessibility is handled.
 - [ ] No random hardcoded colors/spacing when project tokens/classes exist.
-- [ ] `/pi-design-review` score is >= 3/4 for every pillar or waiver is recorded.
+- [ ] \`/pi-design-review\` score is >= 3/4 for every pillar or waiver is recorded.
 `;
 }
 
@@ -1160,94 +1160,99 @@ function createPhase(cwd: string, name: string): PhaseInfo {
 			2,
 		)}\n`,
 	);
-	writeIfMissing(phase.planPath, `# Phase ${String(id).padStart(2, "0")}: ${name}
-
-## Objective
-
-TBD
-
-## Files to read first
-
-- `.pi-factory/PROJECT.md`
-- `.pi-factory/REQUIREMENTS.md`
-- `.pi-factory/ROADMAP.md`
-- `${path.relative(cwd, phase.contextPath)}`
-- `.pi-factory/DESIGN.md` if this phase touches UI/UX
-- `~/.pi/agent/design/SENIOR_FRONTEND_DEFAULT.md` if this phase touches UI/UX
-- `~/.pi/agent/design/FRONTEND_CODE_QUALITY.md` if this phase touches frontend code
-- `${path.relative(cwd, path.join(phase.dir, "UI-SPEC.md"))}` if this phase touches UI/UX
-
-## Assumptions / locked decisions
-
-- TBD
-
-## UI/UX contract
-
-If this phase changes user-facing UI, run `/pi-ui-phase ${id}` before implementation and keep this section aligned with `UI-SPEC.md`. If user gives no detailed design direction, apply Pi Senior Frontend Default.
-
-- Visual hierarchy: one clear focal point and primary action.
-- Typography: project scale or 12/14/16/20/24/32/40/48 default.
-- Color: neutral surfaces, one accent, semantic state colors only.
-- Spacing/layout: 4px grid; 8/12/16/24/32/48 scale.
-- States: loading, empty, error, success, disabled, hover, focus.
-- Responsive: mobile 375x812, tablet 768x1024, desktop 1440x900.
-- Accessibility: keyboard reachability, visible focus, labels/ARIA, contrast-aware colors.
-
-## Frontend code quality contract
-
-If this phase changes frontend code, apply `~/.pi/agent/design/FRONTEND_CODE_QUALITY.md`.
-
-- Component boundaries: focused components, no unrelated god component changes.
-- Props/types/data: explicit shapes, no avoidable `any`, validate/normalize boundaries.
-- State/data flow: loading/empty/error/success/disabled/pending represented clearly.
-- Forms/accessibility: labels, field errors, pending state, semantic controls, focus-visible.
-- Styling: reuse tokens/classes/components; avoid random inline styles/arbitrary values.
-- Performance/security: no unnecessary dependency, unsafe HTML, client-only auth, unguarded browser globals.
-- Tests: add/update unit/component/e2e coverage for behavior changes where supported.
-
-## Tasks
-
-1. TBD
-
-## TDD requirements
-
-- Use TDD for behavior changes.
-- For UI behavior, add component/e2e/regression tests where the project supports them.
-
-## Verification commands
-
-Prefer this machine-readable format when possible:
-
-```yaml
-verification:
-  - command: npm test
-    required: false
-    skip_if_missing_npm_script: test
-```
-
-## Frontend engineering verification
-
-For frontend code phases:
-
-- Run `/pi-frontend-review ${id}` after implementation.
-- Block ship on frontend engineering blockers unless explicitly waived.
-
-## Visual verification
-
-For user-facing UI phases:
-
-- Run `/pi-design-review ${id}` after implementation.
-- Required viewports: mobile 375x812, tablet 768x1024, desktop 1440x900.
-- Block ship if any UI review pillar is below 3/4 unless explicitly waived.
-
-## Done criteria
-
-- TBD
-
-## Failure handling
-
-- Stop on verification failure and update SUMMARY.md.
-`);
+	writeIfMissing(
+		phase.planPath,
+		[
+			`# Phase ${String(id).padStart(2, "0")}: ${name}`,
+			"",
+			"## Objective",
+			"",
+			"TBD",
+			"",
+			"## Files to read first",
+			"",
+			"- `.pi-factory/PROJECT.md`",
+			"- `.pi-factory/REQUIREMENTS.md`",
+			"- `.pi-factory/ROADMAP.md`",
+			`- \`${path.relative(cwd, phase.contextPath)}\``,
+			"- `.pi-factory/DESIGN.md` if this phase touches UI/UX",
+			"- `~/.pi/agent/design/SENIOR_FRONTEND_DEFAULT.md` if this phase touches UI/UX",
+			"- `~/.pi/agent/design/FRONTEND_CODE_QUALITY.md` if this phase touches frontend code",
+			`- \`${path.relative(cwd, path.join(phase.dir, "UI-SPEC.md"))}\` if this phase touches UI/UX`,
+			"",
+			"## Assumptions / locked decisions",
+			"",
+			"- TBD",
+			"",
+			"## UI/UX contract",
+			"",
+			`If this phase changes user-facing UI, run \`/pi-ui-phase ${id}\` before implementation and keep this section aligned with \`UI-SPEC.md\`. If user gives no detailed design direction, apply Pi Senior Frontend Default.`,
+			"",
+			"- Visual hierarchy: one clear focal point and primary action.",
+			"- Typography: project scale or 12/14/16/20/24/32/40/48 default.",
+			"- Color: neutral surfaces, one accent, semantic state colors only.",
+			"- Spacing/layout: 4px grid; 8/12/16/24/32/48 scale.",
+			"- States: loading, empty, error, success, disabled, hover, focus.",
+			"- Responsive: mobile 375x812, tablet 768x1024, desktop 1440x900.",
+			"- Accessibility: keyboard reachability, visible focus, labels/ARIA, contrast-aware colors.",
+			"",
+			"## Frontend code quality contract",
+			"",
+			"If this phase changes frontend code, apply `~/.pi/agent/design/FRONTEND_CODE_QUALITY.md`.",
+			"",
+			"- Component boundaries: focused components, no unrelated god component changes.",
+			"- Props/types/data: explicit shapes, no avoidable `any`, validate/normalize boundaries.",
+			"- State/data flow: loading/empty/error/success/disabled/pending represented clearly.",
+			"- Forms/accessibility: labels, field errors, pending state, semantic controls, focus-visible.",
+			"- Styling: reuse tokens/classes/components; avoid random inline styles/arbitrary values.",
+			"- Performance/security: no unnecessary dependency, unsafe HTML, client-only auth, unguarded browser globals.",
+			"- Tests: add/update unit/component/e2e coverage for behavior changes where supported.",
+			"",
+			"## Tasks",
+			"",
+			"1. TBD",
+			"",
+			"## TDD requirements",
+			"",
+			"- Use TDD for behavior changes.",
+			"- For UI behavior, add component/e2e/regression tests where the project supports them.",
+			"",
+			"## Verification commands",
+			"",
+			"Prefer this machine-readable format when possible:",
+			"",
+			"```yaml",
+			"verification:",
+			"  - command: npm test",
+			"    required: false",
+			"    skip_if_missing_npm_script: test",
+			"```",
+			"",
+			"## Frontend engineering verification",
+			"",
+			"For frontend code phases:",
+			"",
+			`- Run \`/pi-frontend-review ${id}\` after implementation.`,
+			"- Block ship on frontend engineering blockers unless explicitly waived.",
+			"",
+			"## Visual verification",
+			"",
+			"For user-facing UI phases:",
+			"",
+			`- Run \`/pi-design-review ${id}\` after implementation.`,
+			"- Required viewports: mobile 375x812, tablet 768x1024, desktop 1440x900.",
+			"- Block ship if any UI review pillar is below 3/4 unless explicitly waived.",
+			"",
+			"## Done criteria",
+			"",
+			"- TBD",
+			"",
+			"## Failure handling",
+			"",
+			"- Stop on verification failure and update SUMMARY.md.",
+			"",
+		].join("\n"),
+	);
 	appendFile(factoryPath(cwd, "ROADMAP.md"), `| ${String(id).padStart(2, "0")} | ${name} | planned | ${path.relative(cwd, dir)} |\n`);
 	updateState(cwd, phase, "planned", "Phase scaffold created");
 	return { ...phase, hasPlan: true, hasContext: true, status: "planned" };
