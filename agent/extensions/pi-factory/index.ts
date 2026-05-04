@@ -906,7 +906,7 @@ function designScaffold(projectName: string): string {
 
 Created: ${nowIso()}
 Project: ${projectName || "TBD"}
-Baseline: Pi Senior Frontend Default Design (`~/.pi/agent/design/SENIOR_FRONTEND_DEFAULT.md`)
+Baseline: Pi Senior Frontend Default Design (\`~/.pi/agent/design/SENIOR_FRONTEND_DEFAULT.md\`)
 
 ## Design mode
 
@@ -998,9 +998,9 @@ If the user has not provided detailed visual direction, apply the Pi Senior Fron
 
 <details><summary>Pi Senior Frontend Default</summary>
 
-```md
+\`\`\`md
 ${defaultDesign.trim()}
-```
+\`\`\`
 
 </details>
 `;
