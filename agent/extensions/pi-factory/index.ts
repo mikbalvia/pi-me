@@ -29,6 +29,7 @@ const DEFAULT_MAX_AGENT_TURNS = 20;
 const DEFAULT_MAX_PHASES = 1;
 const MAX_RETRIES_DEFAULT = 0;
 const SENIOR_FRONTEND_DEFAULT_PATH = path.join(os.homedir(), ".pi", "agent", "design", "SENIOR_FRONTEND_DEFAULT.md");
+const FRONTEND_CODE_QUALITY_PATH = path.join(os.homedir(), ".pi", "agent", "design", "FRONTEND_CODE_QUALITY.md");
 
 type PhaseStatus = "pending" | "context-ready" | "planned" | "running" | "blocked" | "failed" | "verified" | "done";
 
@@ -297,6 +298,11 @@ function readJsonFile<T>(filePath: string): T {
 function readSeniorFrontendDefault(): string {
 	if (!exists(SENIOR_FRONTEND_DEFAULT_PATH)) return "Pi Senior Frontend Default: calm, clear, premium-but-not-flashy, restrained accent, 4px grid, responsive, accessible, polished states, outcome-based copy.";
 	return readText(SENIOR_FRONTEND_DEFAULT_PATH);
+}
+
+function readFrontendCodeQuality(): string {
+	if (!exists(FRONTEND_CODE_QUALITY_PATH)) return "Pi Senior Frontend Code Quality: focused components, explicit state/types, semantic accessibility, tokenized styling, tested behavior, performance-aware, security-conscious.";
+	return readText(FRONTEND_CODE_QUALITY_PATH);
 }
 
 function exists(filePath: string): boolean {
@@ -1168,6 +1174,7 @@ TBD
 - `${path.relative(cwd, phase.contextPath)}`
 - `.pi-factory/DESIGN.md` if this phase touches UI/UX
 - `~/.pi/agent/design/SENIOR_FRONTEND_DEFAULT.md` if this phase touches UI/UX
+- `~/.pi/agent/design/FRONTEND_CODE_QUALITY.md` if this phase touches frontend code
 - `${path.relative(cwd, path.join(phase.dir, "UI-SPEC.md"))}` if this phase touches UI/UX
 
 ## Assumptions / locked decisions
@@ -1185,6 +1192,18 @@ If this phase changes user-facing UI, run `/pi-ui-phase ${id}` before implementa
 - States: loading, empty, error, success, disabled, hover, focus.
 - Responsive: mobile 375x812, tablet 768x1024, desktop 1440x900.
 - Accessibility: keyboard reachability, visible focus, labels/ARIA, contrast-aware colors.
+
+## Frontend code quality contract
+
+If this phase changes frontend code, apply `~/.pi/agent/design/FRONTEND_CODE_QUALITY.md`.
+
+- Component boundaries: focused components, no unrelated god component changes.
+- Props/types/data: explicit shapes, no avoidable `any`, validate/normalize boundaries.
+- State/data flow: loading/empty/error/success/disabled/pending represented clearly.
+- Forms/accessibility: labels, field errors, pending state, semantic controls, focus-visible.
+- Styling: reuse tokens/classes/components; avoid random inline styles/arbitrary values.
+- Performance/security: no unnecessary dependency, unsafe HTML, client-only auth, unguarded browser globals.
+- Tests: add/update unit/component/e2e coverage for behavior changes where supported.
 
 ## Tasks
 
@@ -1205,6 +1224,13 @@ verification:
     required: false
     skip_if_missing_npm_script: test
 ```
+
+## Frontend engineering verification
+
+For frontend code phases:
+
+- Run `/pi-frontend-review ${id}` after implementation.
+- Block ship on frontend engineering blockers unless explicitly waived.
 
 ## Visual verification
 
@@ -1228,7 +1254,7 @@ For user-facing UI phases:
 }
 
 function buildPlannerPrompt(phase: PhaseInfo, args: string): string {
-	return `You are running Pi Factory phase planning. Use skills pi-gsd, pi-superpowers, pi-gstack, and pi-frontend-ux if available.
+	return `You are running Pi Factory phase planning. Use skills pi-gsd, pi-superpowers, pi-gstack, pi-frontend-ux, and pi-frontend-engineering if available.
 
 Goal: create/update a high-quality executable PLAN.md for this phase.
 
@@ -1243,6 +1269,7 @@ Read these files if present:
 - .pi-factory/STATE.md
 - .pi-factory/DESIGN.md
 - ~/.pi/agent/design/SENIOR_FRONTEND_DEFAULT.md when this touches UI/frontend
+- ~/.pi/agent/design/FRONTEND_CODE_QUALITY.md when this touches frontend code
 - ${path.relative(process.cwd(), phase.contextPath)}
 - ${path.relative(process.cwd(), path.join(phase.dir, "UI-SPEC.md"))} when this touches UI/frontend
 
@@ -1259,8 +1286,10 @@ Frontend/UI/UX planning rules:
 - Ensure phase UI-SPEC.md exists for UI work and has no unresolved TBD in core sections.
 - PLAN.md must include concrete UI acceptance criteria: visual hierarchy, typography, color, spacing, states, responsive behavior, accessibility, and copy.
 - Include all required states: loading, empty, error, success, disabled, hover, focus; mark not-applicable states with reasons.
+- Add a Frontend code quality contract aligned with ~/.pi/agent/design/FRONTEND_CODE_QUALITY.md: component boundaries, props/types, state/data flow, forms, styling, accessibility implementation, performance, security, and tests.
+- Add engineering review gate: /pi-frontend-review ${phase.id} after implementation for frontend code phases.
 - Add visual review gate: /pi-design-review ${phase.id} --url <local-url> when a dev server is available.
-- Avoid generic AI slop: random gradients, arbitrary spacing, hardcoded colors, vague CTAs, unlabeled controls.
+- Avoid generic AI slop and fragile frontend code: random gradients, arbitrary spacing, hardcoded colors, vague CTAs, unlabeled controls, god components, untyped props, unsafe HTML, duplicated state, and untested behavior.
 
 For Verification commands, prefer a machine-readable block:
 
@@ -1279,7 +1308,7 @@ Keep language concrete; avoid ambiguous conditions like "if practical" unless en
 
 function buildExecutionPrompt(phase: PhaseInfo, verifyCommand?: string): string {
 	const rel = (p: string) => path.relative(process.cwd(), p);
-	return `You are a fresh child Pi executor for Pi Factory. Use skills pi-gsd, pi-superpowers, pi-gstack, and pi-frontend-ux if available.
+	return `You are a fresh child Pi executor for Pi Factory. Use skills pi-gsd, pi-superpowers, pi-gstack, pi-frontend-ux, and pi-frontend-engineering if available.
 
 Execute exactly one phase.
 
@@ -1300,7 +1329,7 @@ Mandatory process:
 9. Return a concise final report and stop. Do not continue inspecting files after verification passes.
 
 Frontend/UI/UX implementation rules:
-- If this phase touches UI/frontend, read .pi-factory/DESIGN.md, ${rel(path.join(phase.dir, "UI-SPEC.md"))}, and ~/.pi/agent/design/SENIOR_FRONTEND_DEFAULT.md if present.
+- If this phase touches UI/frontend, read .pi-factory/DESIGN.md, ${rel(path.join(phase.dir, "UI-SPEC.md"))}, ~/.pi/agent/design/SENIOR_FRONTEND_DEFAULT.md, and ~/.pi/agent/design/FRONTEND_CODE_QUALITY.md if present.
 - If user gave no detailed visual direction, use Pi Senior Frontend Default: calm, clear, restrained, responsive, accessible, polished states.
 - Implement all relevant states: loading, empty, error, success, disabled, hover, focus; document not-applicable states.
 - Use project design tokens/classes/components where available. Do not introduce random hardcoded colors, arbitrary spacing, or one-off styles unless necessary and documented.
@@ -1308,6 +1337,16 @@ Frontend/UI/UX implementation rules:
 - Ensure accessibility: keyboard reachability, visible focus, labels, aria-label for icon-only controls, contrast-conscious colors.
 - Improve copy quality: outcome-based CTAs, helpful empty/error copy, no generic “Submit”, “OK”, “No data”, or “Something went wrong” alone.
 - Keep visual changes focused on this phase. Do not redesign unrelated screens.
+
+Frontend code quality rules:
+- Keep components focused; split god components and avoid mixing unrelated data/form/layout concerns.
+- Use explicit props/types/data boundaries; avoid any/unknown escape hatches unless narrowed and justified.
+- Model async state deliberately; avoid conflicting loading/error/success booleans when a status union is clearer.
+- Reuse project primitives, loaders/actions/hooks/stores, and styling patterns before inventing new ones.
+- For forms, implement labels, field errors, pending disabled state, server error path, and success/next-step feedback.
+- Avoid unsafe HTML, client-only authorization, leaked secrets, unguarded browser globals in SSR, and target=_blank without noopener/noreferrer.
+- Avoid unnecessary dependencies, heavy client boundaries, layout shift, and expensive render-time work.
+- Add/update tests for user-visible behavior where the project supports it; if not possible, document the gap in SUMMARY.md.
 
 Important:
 - Do not claim completion without fresh verification evidence.
@@ -1421,6 +1460,9 @@ function checkPhaseReadiness(phase: PhaseInfo): CheckResult {
 		}
 		const uiContract = getPlanSection(plan, "UI/UX contract");
 		if (!uiContract.trim() || /\bTBD\b/i.test(uiContract)) shouldFix.push("PLAN.md UI/UX contract is missing or weak; sync it with UI-SPEC.md.");
+		const frontendQuality = getPlanSection(plan, "Frontend code quality contract") || getPlanSection(plan, "Code quality contract");
+		if (!frontendQuality.trim()) shouldFix.push("PLAN.md lacks Frontend code quality contract; include component boundaries, state model, tests, performance, and security checks.");
+		else if (!/component|state|test|accessib|performance|security/i.test(frontendQuality)) shouldFix.push("Frontend code quality contract is weak; align it with ~/.pi/agent/design/FRONTEND_CODE_QUALITY.md.");
 	}
 	return { phase, ready: mustFix.length === 0, mustFix, shouldFix, verificationSteps };
 }
@@ -1435,7 +1477,7 @@ function readDoneProtocol(phase: PhaseInfo): DoneProtocol | undefined {
 }
 
 function docsText(_cwd: string): string {
-	return `# Pi Factory Docs\n\nExtension: \`~/.pi/agent/extensions/pi-factory/index.ts\`\nDocs: \`~/.pi/agent/extensions/pi-factory/README.md\`\nUse cases: \`~/.pi/agent/extensions/pi-factory/USECASES.md\`\nNext enhancements: \`~/.pi/agent/extensions/pi-factory/NEXT_ENHANCEMENTS.md\`\n\n## Core commands\n- \`/pi-dashboard\` — Pi-native interactive factory cockpit\n- \`/pi-next\` — show next best action\n- \`/pi-status\` — phase status\n- \`/pi-factory-check [phase]\` — deterministic readiness check\n- \`/build-loop --dry-run\` — preview next phase + effective options\n- \`/build-loop --max-phases 1 --require-check\` — execute with readiness gate\n- \`/pi-plan-phase [phase]\` — create/refine PLAN.md\n\n## Design / UI / DX commands\n- \`/pi-design-system\` — create/update \`.pi-factory/DESIGN.md\`\n- \`/pi-ui-phase [phase]\` — create/update phase \`UI-SPEC.md\` design contract\n- \`/pi-sketch <idea>\` — create 2-3 throwaway HTML design variants\n- \`/pi-design-review [phase] [--url URL] [--fix] [--waive]\` — screenshot/code 6-pillar UI audit\n- \`/pi-design-loop [phase] [--url URL] [--max-iterations N]\` — review → focused fix → re-review UI loop\n- \`/pi-dx-review\` — developer-experience audit prompt\n- \`/pi-ship-review\` — final product/eng/design/QA release gate\n`;
+	return `# Pi Factory Docs\n\nExtension: \`~/.pi/agent/extensions/pi-factory/index.ts\`\nDocs: \`~/.pi/agent/extensions/pi-factory/README.md\`\nUse cases: \`~/.pi/agent/extensions/pi-factory/USECASES.md\`\nNext enhancements: \`~/.pi/agent/extensions/pi-factory/NEXT_ENHANCEMENTS.md\`\n\n## Core commands\n- \`/pi-dashboard\` — Pi-native interactive factory cockpit\n- \`/pi-next\` — show next best action\n- \`/pi-status\` — phase status\n- \`/pi-factory-check [phase]\` — deterministic readiness check\n- \`/build-loop --dry-run\` — preview next phase + effective options\n- \`/build-loop --max-phases 1 --require-check\` — execute with readiness gate\n- \`/pi-plan-phase [phase]\` — create/refine PLAN.md\n\n## Design / UI / DX commands\n- \`/pi-design-system\` — create/update \`.pi-factory/DESIGN.md\`\n- \`/pi-ui-phase [phase]\` — create/update phase \`UI-SPEC.md\` design contract\n- \`/pi-sketch <idea>\` — create 2-3 throwaway HTML design variants\n- \`/pi-design-review [phase] [--url URL] [--fix] [--waive]\` — screenshot/code 6-pillar UI audit\n- \`/pi-design-loop [phase] [--url URL] [--max-iterations N]\` — review → focused fix → re-review UI loop\n- \`/pi-frontend-review [phase] [--fix] [--waive] [--min-score N]\` — senior frontend code quality audit\n- \`/pi-dx-review\` — developer-experience audit prompt\n- \`/pi-ship-review\` — final product/eng/design/QA release gate\n`;
 }
 
 function nextText(): string {
@@ -1444,11 +1486,13 @@ function nextText(): string {
 Implemented focus areas:
 - Global Pi Senior Frontend Default at \`~/.pi/agent/design/SENIOR_FRONTEND_DEFAULT.md\`.
 - New \`pi-frontend-ux\` skill for senior UI/frontend discipline.
+- New \`pi-frontend-engineering\` skill plus \`~/.pi/agent/design/FRONTEND_CODE_QUALITY.md\` for senior frontend code discipline.
 - Opinionated DESIGN.md and UI-SPEC.md scaffolds with default assumptions instead of weak TBDs.
 - Planner/executor prompts now load frontend UX discipline and default design rules.
 - UI readiness gate: UI phases must have DESIGN.md and UI-SPEC.md without unresolved TBD.
 - Expanded UI code heuristics: copy, states, accessibility, responsive signals, arbitrary spacing/type/color, semantic controls.
 - Build-loop UI quality gate: verified UI phases run design review and block if score is below threshold.
+- Frontend engineering review: architecture/state/types/styling/performance/security/testing heuristics.
 - \`/pi-design-loop\`: review → focused fix → re-review loop.
 
 Recommended next hardening:
@@ -1587,6 +1631,83 @@ function countRegexMatches(text: string, regex: RegExp): number {
 	return matches ? matches.length : 0;
 }
 
+function frontendCodeHeuristics(cwd: string): { findings: string[]; scores: Record<string, number> } {
+	const findings: string[] = [];
+	const roots = ["src", "app", "pages", "components"].filter((root) => exists(path.join(cwd, root)));
+	const files: string[] = [];
+	const walk = (dir: string) => {
+		for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+			const full = path.join(dir, entry.name);
+			if (entry.isDirectory()) {
+				if (!["node_modules", ".git", "dist", "build", ".svelte-kit", "coverage", ".next"].includes(entry.name)) walk(full);
+			} else if (/\.(svelte|tsx|jsx|vue|ts|js)$/.test(entry.name) && !/\.(test|spec)\.(ts|js|tsx|jsx)$/.test(entry.name)) files.push(full);
+		}
+	};
+	for (const root of roots) walk(path.join(cwd, root));
+	let text = "";
+	let oversized = 0;
+	for (const file of files.slice(0, 350)) {
+		const fileText = readText(file);
+		const lines = fileText.split(/\r?\n/).length;
+		if (lines > 350) {
+			oversized++;
+			findings.push(`${path.relative(cwd, file)} is ${lines} lines; consider splitting component/data/form concerns.`);
+		}
+		text += `\n/* ${path.relative(cwd, file)} */\n${fileText.slice(0, 50000)}`;
+	}
+
+	const anyUsage = countRegexMatches(text, /\bany\b|as\s+any|:\s*unknown\b/g);
+	const unsafeHtml = countRegexMatches(text, /{@html|dangerouslySetInnerHTML|v-html|innerHTML\s*=/g);
+	const inlineStyles = countRegexMatches(text, /\bstyle=\{|\sstyle="/g);
+	const consoleLogs = countRegexMatches(text, /\bconsole\.(log|debug|info)\(/g);
+	const targetBlank = countRegexMatches(text, /target=["']_blank["']/g);
+	const noopener = countRegexMatches(text, /rel=["'][^"']*(noopener|noreferrer)/g);
+	const directWindow = countRegexMatches(text, /\b(window|document|localStorage|sessionStorage)\./g);
+	const unguardedBrowserApi = directWindow > 0 && !/onMount\(|browser\b|typeof\s+window|useEffect\(/.test(text);
+	const rawFetch = countRegexMatches(text, /\bfetch\(/g);
+	const fetchErrorHandling = /try\s*{|catch\s*\(|\.catch\(|response\.ok|res\.ok/.test(text);
+	const repeatedBooleans = countRegexMatches(text, /isLoading|loading|isError|hasError|isSuccess|isSubmitting|pending/g);
+	const explicitStateUnion = /status\s*[:=]|state\s*[:=]|type\s+\w+State|enum\s+\w+State|\b'idle'\s*\|\s*'loading'/.test(text);
+	const testFiles = roots.flatMap((root) => {
+		const rootPath = path.join(cwd, root);
+		const out: string[] = [];
+		const scan = (dir: string) => {
+			for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+				const full = path.join(dir, entry.name);
+				if (entry.isDirectory()) {
+					if (!["node_modules", ".git", "dist", "build", ".svelte-kit", "coverage", ".next"].includes(entry.name)) scan(full);
+				} else if (/\.(test|spec)\.(ts|js|tsx|jsx|svelte)$/.test(entry.name)) out.push(full);
+			}
+		};
+		if (exists(rootPath)) scan(rootPath);
+		return out;
+	});
+
+	if (!files.length) findings.push("No obvious frontend source files found; engineering score is limited to project structure.");
+	if (oversized > 0) findings.push(`Oversized frontend files detected (${oversized}); prefer focused components and extracted helpers.`);
+	if (anyUsage > 8) findings.push(`High any/unknown escape-hatch usage (${anyUsage}); tighten props/data boundaries.`);
+	if (unsafeHtml > 0) findings.push(`Unsafe HTML rendering detected (${unsafeHtml}); require sanitization and explicit justification.`);
+	if (inlineStyles > 8) findings.push(`High inline style usage (${inlineStyles}); prefer tokens/classes/components.`);
+	if (consoleLogs > 0) findings.push(`Console log/debug statements detected (${consoleLogs}); remove before ship unless intentional instrumentation.`);
+	if (targetBlank > noopener) findings.push(`External target=_blank links missing noopener/noreferrer (${targetBlank - noopener}).`);
+	if (unguardedBrowserApi) findings.push("Browser globals detected without obvious SSR/client guard; verify SSR/hydration safety.");
+	if (rawFetch > 0 && !fetchErrorHandling) findings.push("fetch() detected without obvious response.ok/catch error handling.");
+	if (repeatedBooleans > 8 && !explicitStateUnion) findings.push("Many async state booleans detected; consider explicit status/state union to avoid impossible states.");
+	if (!testFiles.length && files.length) findings.push("No frontend test/spec files found under common source roots; document test gap or add coverage for behavior changes.");
+
+	const score = (base: number, penalties: number) => Math.max(1, Math.min(4, base - penalties));
+	const scores = {
+		architecture: score(files.length ? 4 : 2, (oversized > 0 ? 1 : 0) + (oversized > 3 ? 1 : 0)),
+		state: score(4, (rawFetch > 0 && !fetchErrorHandling ? 1 : 0) + (repeatedBooleans > 8 && !explicitStateUnion ? 1 : 0)),
+		types: score(4, (anyUsage > 8 ? 1 : 0) + (anyUsage > 24 ? 1 : 0)),
+		styling: score(4, (inlineStyles > 8 ? 1 : 0) + (inlineStyles > 24 ? 1 : 0)),
+		performance: score(4, (unguardedBrowserApi ? 1 : 0)),
+		security: score(4, (unsafeHtml > 0 ? 2 : 0) + (targetBlank > noopener ? 1 : 0)),
+		testing: score(testFiles.length ? 4 : 2, !testFiles.length && files.length ? 1 : 0),
+	};
+	return { findings: findings.slice(0, 50), scores };
+}
+
 function uiCodeHeuristics(cwd: string): { findings: string[]; scores: Record<string, number> } {
 	const findings: string[] = [];
 	const roots = ["src", "app", "pages", "components"].filter((root) => exists(path.join(cwd, root)));
@@ -1714,6 +1835,46 @@ class PiFactoryDashboard implements Component {
 	}
 
 	invalidate(): void {}
+}
+
+
+interface FrontendReviewOptions {
+	phase?: PhaseInfo;
+	fix?: boolean;
+	waive?: boolean;
+	minScore?: number;
+	quiet?: boolean;
+}
+
+async function runFrontendReview(pi: ExtensionAPI, ctx: ExtensionCommandContext, options: FrontendReviewOptions): Promise<{ status: "pass" | "blocked"; minScore: number; reportPath: string; scores: Record<string, number> }> {
+	ensureFactory(ctx.cwd);
+	const phase = options.phase;
+	const reportDir = phase ? path.join(phase.dir, "frontend-review") : factoryPath(ctx.cwd, "frontend-reviews", timestampForFile());
+	ensureDir(reportDir);
+	const heuristics = frontendCodeHeuristics(ctx.cwd);
+	const scores = heuristics.scores;
+	const minScore = Math.min(...Object.values(scores));
+	const requiredMinScore = options.minScore ?? 3;
+	const status = options.waive || minScore >= requiredMinScore ? "pass" : "blocked";
+	const standard = readFrontendCodeQuality();
+	const body = [`# Frontend Code Review${phase ? `: Phase ${String(phase.id).padStart(2, "0")} ${phase.name}` : ""}`, ``, `Status: ${status}`, `Timestamp: ${nowIso()}`, `Baseline: ~/.pi/agent/design/FRONTEND_CODE_QUALITY.md`, ``, `## Scorecard`, ``, `| Pillar | Score | Gate |`, `|---|---:|---|`];
+	for (const [pillar, score] of Object.entries(scores)) body.push(`| ${pillar} | ${scoreBar(score)} | ${score >= requiredMinScore || options.waive ? "PASS" : "BLOCK"} |`);
+	body.push(``, `## Findings`, ``);
+	body.push(...(heuristics.findings.length ? heuristics.findings.map((f) => `- ${f}`) : ["- No blocking frontend engineering heuristics found. Still review changed code against the standard."]));
+	body.push(``, `## Required senior frontend checks`, ``);
+	body.push("- Component boundaries are focused; no god components.", "- Props/types/data boundaries are explicit.", "- Async state and form state are deliberately modeled.", "- Styling reuses project tokens/classes/components.", "- Accessibility is implemented with semantic controls and focus/labels.", "- Performance avoids unnecessary dependency/render/client-boundary cost.", "- Security avoids unsafe HTML, client-only auth, unguarded browser globals, and unsafe external links.", "- Behavior changes have tests or documented test gap.");
+	body.push(``, `## Recommended fixes`, ``);
+	if (status === "blocked" && !options.waive) body.push("- Improve blocked pillars before shipping.", "- Re-run `/pi-frontend-review` after fixes.", "- If accepting tradeoff, record waiver with `/pi-decide` and rerun with `--waive`.");
+	else body.push("- Keep this report as frontend engineering release evidence.");
+	body.push(``, `## Standard excerpt`, ``, `<details><summary>Frontend Code Quality Standard</summary>`, "", "```md", standard.trim().slice(0, 12000), "```", "", `</details>`, "");
+	const reportPath = path.join(reportDir, "FRONTEND-REVIEW.md");
+	fs.writeFileSync(reportPath, body.join("\n"), "utf-8");
+	if (!options.quiet) pi.sendMessage({ customType: "pi-factory", content: `${body.slice(0, 45).join("\n")}\n\nReport: \`${path.relative(ctx.cwd, reportPath)}\``, display: true, details: { reportPath, scores, status } }, { triggerTurn: false });
+	if (options.fix && status === "blocked") {
+		const prompt = `Use pi-frontend-engineering, pi-frontend-ux, pi-gstack Senior Engineer, and pi-superpowers. Fix the frontend code quality findings in ${path.relative(ctx.cwd, reportPath)}.\n\nRules:\n- Read ~/.pi/agent/design/FRONTEND_CODE_QUALITY.md and project patterns.\n- Make focused maintainability/state/types/styling/accessibility/performance/security/test fixes only.\n- Do not redesign unrelated screens or expand product scope.\n- Run project checks/tests and summarize evidence.\n`;
+		await commandSendOrDraft(pi, ctx, prompt, "Frontend code quality fix");
+	}
+	return { status, minScore, reportPath, scores };
 }
 
 interface DesignReviewOptions {
@@ -1972,11 +2133,19 @@ async function runBuildLoop(pi: ExtensionAPI, ctx: ExtensionCommandContext, rawA
 			lastError = safety.notes.join("; ");
 		}
 		if (status === "verified" && options.uiQualityGate !== "off" && hasLikelyUiFiles(ctx.cwd, phase)) {
-			const designReview = await runDesignReview(pi, ctx, { phase, minScore: options.uiReviewMinScore, requireUrl: options.uiReviewRequireUrl, quiet: true });
-			appendFile(phase.verificationPath, `\n\n## UI Design Review\n\n- Report: \`${path.relative(ctx.cwd, designReview.reportPath)}\`\n- Status: ${designReview.status}\n- Min score: ${designReview.minScore}/4\n- URL: ${designReview.url ?? "not detected"}\n`);
-			if (designReview.status === "blocked") {
-				lastError = `UI design review blocked: min score ${designReview.minScore}/${options.uiReviewMinScore}; report ${path.relative(ctx.cwd, designReview.reportPath)}`;
+			const frontendReview = await runFrontendReview(pi, ctx, { phase, minScore: options.uiReviewMinScore, quiet: true });
+			appendFile(phase.verificationPath, `\n\n## Frontend Code Review\n\n- Report: \`${path.relative(ctx.cwd, frontendReview.reportPath)}\`\n- Status: ${frontendReview.status}\n- Min score: ${frontendReview.minScore}/4\n`);
+			if (frontendReview.status === "blocked") {
+				lastError = `Frontend code review blocked: min score ${frontendReview.minScore}/${options.uiReviewMinScore}; report ${path.relative(ctx.cwd, frontendReview.reportPath)}`;
 				if (options.uiQualityGate === "block") status = "blocked";
+			}
+			if (status === "verified") {
+				const designReview = await runDesignReview(pi, ctx, { phase, minScore: options.uiReviewMinScore, requireUrl: options.uiReviewRequireUrl, quiet: true });
+				appendFile(phase.verificationPath, `\n\n## UI Design Review\n\n- Report: \`${path.relative(ctx.cwd, designReview.reportPath)}\`\n- Status: ${designReview.status}\n- Min score: ${designReview.minScore}/4\n- URL: ${designReview.url ?? "not detected"}\n`);
+				if (designReview.status === "blocked") {
+					lastError = `UI design review blocked: min score ${designReview.minScore}/${options.uiReviewMinScore}; report ${path.relative(ctx.cwd, designReview.reportPath)}`;
+					if (options.uiQualityGate === "block") status = "blocked";
+				}
 			}
 		}
 		const gitStatus = await getGitStatus(pi, ctx.cwd);
@@ -2031,7 +2200,7 @@ export default function piFactory(pi: ExtensionAPI): void {
 		handler: async (args, ctx) => {
 			const created = ensureFactory(ctx.cwd, args.trim());
 			ctx.ui.notify(created.length ? `Created: ${created.join(", ")}` : ".pi-factory already exists", "info");
-			const prompt = `Use pi-gsd, pi-superpowers, and pi-gstack. Initialize/refine the Pi Factory project from this idea:\n\n${args.trim() || "(no idea provided)"}\n\nRead/update .pi-factory/PROJECT.md, REQUIREMENTS.md, ROADMAP.md, STATE.md. Ask concise questions if needed. Do not implement code yet.`;
+			const prompt = `Use pi-gsd, pi-superpowers, pi-gstack, pi-frontend-ux, and pi-frontend-engineering. Initialize/refine the Pi Factory project from this idea:\n\n${args.trim() || "(no idea provided)"}\n\nRead/update .pi-factory/PROJECT.md, REQUIREMENTS.md, ROADMAP.md, STATE.md. For frontend/UI projects, also apply ~/.pi/agent/design/SENIOR_FRONTEND_DEFAULT.md and ~/.pi/agent/design/FRONTEND_CODE_QUALITY.md. Ask concise questions if needed. Do not implement code yet.`;
 			await commandSendOrDraft(pi, ctx, prompt, "Project initialization");
 		},
 	});
@@ -2189,6 +2358,16 @@ export default function piFactory(pi: ExtensionAPI): void {
 		},
 	});
 
+	pi.registerCommand("pi-frontend-review", {
+		description: "Senior frontend code quality audit",
+		handler: async (args, ctx) => {
+			ensureFactory(ctx.cwd);
+			const parsed = parseArgs(args);
+			const phase = findPhase(ctx.cwd, parsed.positionals[0]);
+			await runFrontendReview(pi, ctx, { phase, fix: hasFlag(parsed, "fix"), waive: hasFlag(parsed, "waive"), minScore: flagNumberOptional(parsed, "min-score") });
+		},
+	});
+
 	pi.registerCommand("pi-design-loop", {
 		description: "Iterate UI review -> focused fix -> re-review until pass or max iterations",
 		handler: async (args, ctx) => {
@@ -2283,7 +2462,21 @@ export default function piFactory(pi: ExtensionAPI): void {
 
 	const autoplanHandler = async (args: string, ctx: ExtensionCommandContext) => {
 		ensureFactory(ctx.cwd, args.trim());
-		const prompt = `Use pi-gstack, pi-gsd, pi-superpowers, and pi-frontend-ux. Run a Pi Factory autoplan for:\n\n${args.trim() || "the current project"}\n\nProcess:\n1. Office-hours style product interrogation: identify goal, user, constraints, non-goals.\n2. CEO/Product review for scope.\n3. Engineering review for architecture and sequencing.\n4. Design/DX and QA review.\n5. If this touches UI/frontend and user gave no detailed visual direction, apply Pi Senior Frontend Default from ~/.pi/agent/design/SENIOR_FRONTEND_DEFAULT.md.\n6. Write/update .pi-factory/PROJECT.md, REQUIREMENTS.md, ROADMAP.md, STATE.md, and .pi-factory/DESIGN.md for UI projects.\n7. Create small phase directories under .pi-factory/phases with CONTEXT.md, PLAN.md, and UI-SPEC.md for UI phases where enough information exists.\n\nDo not implement production code. End with next recommended command, usually /build-loop --dry-run.`;
+		const prompt = `Use pi-gstack, pi-gsd, pi-superpowers, pi-frontend-ux, and pi-frontend-engineering. Run a Pi Factory autoplan for:
+
+${args.trim() || "the current project"}
+
+Process:
+1. Office-hours style product interrogation: identify goal, user, constraints, non-goals.
+2. CEO/Product review for scope.
+3. Engineering review for architecture and sequencing.
+4. Design/DX and QA review.
+5. If this touches UI/frontend and user gave no detailed visual direction, apply Pi Senior Frontend Default from ~/.pi/agent/design/SENIOR_FRONTEND_DEFAULT.md.
+6. For frontend code phases, apply ~/.pi/agent/design/FRONTEND_CODE_QUALITY.md and include explicit code quality contracts.
+7. Write/update .pi-factory/PROJECT.md, REQUIREMENTS.md, ROADMAP.md, STATE.md, and .pi-factory/DESIGN.md for UI projects.
+8. Create small phase directories under .pi-factory/phases with CONTEXT.md, PLAN.md, UI-SPEC.md for UI phases, and frontend review gates where enough information exists.
+
+Do not implement production code. End with next recommended command, usually /build-loop --dry-run.`;
 		await commandSendOrDraft(pi, ctx, prompt, "Autoplan");
 	};
 

@@ -6,7 +6,7 @@ Tujuannya: membuat kerja coding agent lebih terstruktur, bisa di-resume, punya g
 
 > Lokasi extension: `~/.pi/agent/extensions/pi-factory/index.ts`
 >
-> Status docs: MVP 4 Senior Frontend UX workflow. Default aman saat ini: `maxPhases=1`, `requireCheck=true`, `maxRetries=0`, `maxAgentTurns=20`, `childTimeoutMs=1200000`/20 menit, `childIdleTimeoutMs=300000`/5 menit. UI phase sekarang punya Pi Senior Frontend Default, design source of truth, `UI-SPEC.md`, sketch workflow, screenshot/code design review, `/pi-design-loop`, build-loop UI quality gate, dan dashboard TUI.
+> Status docs: MVP 4 Senior Frontend UX workflow. Default aman saat ini: `maxPhases=1`, `requireCheck=true`, `maxRetries=0`, `maxAgentTurns=20`, `childTimeoutMs=1200000`/20 menit, `childIdleTimeoutMs=300000`/5 menit. UI phase sekarang punya Pi Senior Frontend Default, Frontend Code Quality Standard, design source of truth, `UI-SPEC.md`, sketch workflow, screenshot/code design review, `/pi-frontend-review`, `/pi-design-loop`, build-loop UI/frontend quality gate, dan dashboard TUI.
 
 ---
 
@@ -42,6 +42,7 @@ Extension ini mendaftarkan command dan tool Pi Factory.
 ~/.pi/agent/skills/pi-gsd/SKILL.md
 ~/.pi/agent/skills/pi-gstack/SKILL.md
 ~/.pi/agent/skills/pi-frontend-ux/SKILL.md
+~/.pi/agent/skills/pi-frontend-engineering/SKILL.md
 ```
 
 Fungsinya:
@@ -50,6 +51,7 @@ Fungsinya:
 - `pi-gsd`: project/phase workflow berbasis `.pi-factory/`.
 - `pi-gstack`: multi-role decision/review workflow.
 - `pi-frontend-ux`: senior frontend/UI/UX defaults, states, responsive, accessibility, copy, and visual quality gates.
+- `pi-frontend-engineering`: senior frontend code quality: components, props/types, state/data flow, forms, styling, performance, security, and tests.
 
 ### Prompt templates
 
@@ -233,6 +235,7 @@ Pi Factory v3 menambahkan lapisan design workflow yang diadaptasi dari GSD UI-SP
 | `/pi-ui-phase [phase]` | Membuat/update `UI-SPEC.md` untuk phase user-facing UI. |
 | `/pi-sketch <idea>` | Membuat throwaway HTML sketch 2-3 variant di `.pi-factory/sketches/`. |
 | `/pi-design-review [phase] [--url URL] [--fix] [--waive]` | 6-pillar UI audit dengan screenshot Playwright bila URL tersedia, fallback code heuristics bila tidak. |
+| `/pi-frontend-review [phase] [--fix] [--waive] [--min-score N]` | Senior frontend code quality audit: architecture, state, types, styling, performance, security, testing. |
 | `/pi-design-loop [phase] [--url URL] [--max-iterations N]` | RalphLoop-style UI loop: review → focused fix → re-review sampai pass atau iterasi habis. |
 | `/pi-dx-review [target]` | Developer experience audit prompt: onboarding, docs, CLI/API, errors, TTHW. |
 | `/pi-ship-review` | Final product/engineering/design/QA release gate. |
@@ -243,13 +246,14 @@ UI phase recommended flow:
 /pi-design-system "brand/product direction"
 /pi-ui-phase 1
 /build-loop 1
+/pi-frontend-review 1
 /pi-design-review 1 --url http://localhost:5173
 # atau auto-iterate visual fixes
 /pi-design-loop 1 --url http://localhost:5173 --max-iterations 2
 /pi-ship-review
 ```
 
-Ship gate default untuk UI: setiap pillar `/pi-design-review` minimal `3/4`, kecuali ada waiver eksplisit via decision record. `/build-loop` sekarang dapat menjalankan UI quality gate otomatis untuk phase UI.
+Ship gate default untuk frontend/UI: setiap pillar `/pi-frontend-review` dan `/pi-design-review` minimal `3/4`, kecuali ada waiver eksplisit via decision record. `/build-loop` sekarang dapat menjalankan frontend engineering + UI quality gate otomatis untuk phase UI.
 
 ### 6.1 `/pi-new-project`
 
@@ -623,6 +627,22 @@ Output expected:
 
 ---
 
+
+### Senior Frontend Code Quality
+
+Pi now also carries a persistent frontend engineering standard:
+
+```text
+~/.pi/agent/design/FRONTEND_CODE_QUALITY.md
+```
+
+Rule: when a phase touches frontend code, Pi applies this standard so the code is senior-grade, not only the UI appearance. It covers component boundaries, props/types, state/data flow, forms, styling discipline, accessibility implementation, performance, security, and testing.
+
+Command:
+
+```text
+/pi-frontend-review <phase>
+```
 
 ### Senior Frontend Default
 
@@ -1093,6 +1113,7 @@ Ulangi sampai semua phase verified.
 /pi-plan-phase 1
 /build-loop 1 --dry-run
 /build-loop 1
+/pi-frontend-review 1
 /pi-design-review 1 --url http://localhost:5173
 # atau auto-iterate visual fixes
 /pi-design-loop 1 --url http://localhost:5173 --max-iterations 2
@@ -1412,6 +1433,7 @@ Itu masuk kandidat setelah MVP 3 baseline.
 /pi-design-system Product should feel calm, fast, and trustworthy
 /pi-ui-phase 1
 /pi-sketch dashboard layout alternatives
+/pi-frontend-review 1
 /pi-design-review 1 --url http://localhost:5173
 
 # Review before execution

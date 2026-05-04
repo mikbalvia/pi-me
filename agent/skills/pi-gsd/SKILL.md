@@ -111,6 +111,7 @@ To make automation reliable:
 - Keep verification commands explicit.
 - Avoid vague tasks like “finish UI”.
 - For UI/frontend phases, require `.pi-factory/DESIGN.md` and phase `UI-SPEC.md`; use `~/.pi/agent/design/SENIOR_FRONTEND_DEFAULT.md` when user details are missing.
+- Frontend code phases should apply `~/.pi/agent/design/FRONTEND_CODE_QUALITY.md` and include component boundaries, props/types, state/data flow, forms, styling, accessibility implementation, performance, security, tests, and `/pi-frontend-review` gate.
 - UI phases should include visual hierarchy, typography, color, spacing, states, responsive, accessibility, copy, and `/pi-design-review` gate.
 - Include exact files or discovery commands.
 - Keep each phase small enough for one child Pi run.

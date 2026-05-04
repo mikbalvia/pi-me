@@ -38,6 +38,8 @@ Use these perspectives when reviewing a plan or answering `/pi-decide`:
 
 - Is the architecture simple and maintainable?
 - Are data boundaries/API contracts clear?
+- For frontend code, does it apply `~/.pi/agent/design/FRONTEND_CODE_QUALITY.md`?
+- Are component boundaries, props/types, state/data flow, forms, styling, performance, security, and tests senior-grade?
 - Are migrations/backwards compatibility handled?
 - Is there unnecessary cleverness?
 

@@ -13,6 +13,13 @@ Always read the global default if available:
 ~/.pi/agent/design/SENIOR_FRONTEND_DEFAULT.md
 ```
 
+For frontend code quality, also use:
+
+```text
+~/.pi/agent/design/FRONTEND_CODE_QUALITY.md
+~/.pi/agent/skills/pi-frontend-engineering/SKILL.md
+```
+
 If project-local design exists, it wins over the global default:
 
 ```text
@@ -42,6 +49,7 @@ Every user-facing change must consider:
 - Accessibility: keyboard, focus-visible, labels, ARIA for icon-only controls.
 - Copy: outcome-based CTAs, helpful empty/error text, no generic slop.
 - Maintainability: reusable components/tokens/classes, avoid duplicated one-off styling.
+- Engineering quality: focused components, explicit props/types, clear state/data flow, tested behavior, performance/security awareness.
 
 ## Planning contract
 
@@ -50,7 +58,7 @@ Before implementation of non-trivial UI work:
 - Create/update `.pi-factory/DESIGN.md`.
 - Create/update phase `UI-SPEC.md`.
 - Add UI acceptance criteria to `PLAN.md`.
-- Add verification commands and visual review gate.
+- Add verification commands, `/pi-frontend-review`, and visual review gate.
 
 ## TDD / verification
 

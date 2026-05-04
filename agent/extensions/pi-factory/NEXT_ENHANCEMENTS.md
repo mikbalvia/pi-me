@@ -46,9 +46,11 @@ Sudah ada:
 - UI/UX design layer:
   - Global senior frontend default at `~/.pi/agent/design/SENIOR_FRONTEND_DEFAULT.md`.
   - New `pi-frontend-ux` skill.
+  - New `pi-frontend-engineering` skill.
+  - Global frontend engineering standard at `~/.pi/agent/design/FRONTEND_CODE_QUALITY.md`.
   - `.pi-factory/DESIGN.md` scaffold/source of truth seeded from senior frontend defaults.
   - Phase `UI-SPEC.md` design contract.
-  - `/pi-design-system`, `/pi-ui-phase`, `/pi-sketch`, `/pi-design-review`, `/pi-design-loop`, `/pi-dx-review`, `/pi-ship-review`.
+  - `/pi-design-system`, `/pi-ui-phase`, `/pi-sketch`, `/pi-design-review`, `/pi-frontend-review`, `/pi-design-loop`, `/pi-dx-review`, `/pi-ship-review`.
   - 6-pillar visual audit with Playwright screenshot capture when a live URL is available, fallback code heuristics otherwise.
   - `.pi-factory/sketches/` throwaway HTML variants + manifest.
 - Operator UX layer:

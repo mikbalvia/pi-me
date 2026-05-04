@@ -12,12 +12,14 @@ Focus on:
 - responsive behavior at mobile/tablet/desktop
 - accessibility: keyboard, focus-visible, labels, ARIA, contrast
 - copywriting: outcome-based CTAs and helpful empty/error text
+- frontend code quality when relevant: component boundaries, props/types, state/data flow, styling maintainability, performance, security, and tests
 - documentation/readme quality
 - interface polish appropriate for a senior frontend MVP
 
 Default design rule:
 - If the user gives no detailed UI direction, apply Pi Senior Frontend Default from `~/.pi/agent/design/SENIOR_FRONTEND_DEFAULT.md`.
-- Do not leave visual decisions as vague TBDs when a good default can be applied.
+- If reviewing frontend code, apply `~/.pi/agent/design/FRONTEND_CODE_QUALITY.md`.
+- Do not leave visual or frontend engineering decisions as vague TBDs when a good default can be applied.
 - Avoid generic SaaS/AI slop, random gradients, arbitrary spacing, unlabeled controls, and vague copy.
 
 Output concrete usability issues, simplifications, acceptance checks, and score risks. Do not implement code unless explicitly asked.

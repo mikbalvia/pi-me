@@ -12,7 +12,7 @@ Dokumen ini berisi contoh praktis memakai Pi Factory dari awal sampai automation
 
 ### Goal
 
-Memperbaiki UI dashboard agar tidak terlihat generic/AI slop. Jika user tidak memberi detail, Pi memakai `~/.pi/agent/design/SENIOR_FRONTEND_DEFAULT.md`.
+Memperbaiki UI dashboard agar tidak terlihat generic/AI slop. Jika user tidak memberi detail, Pi memakai `~/.pi/agent/design/SENIOR_FRONTEND_DEFAULT.md`; untuk kualitas kode frontend Pi memakai `~/.pi/agent/design/FRONTEND_CODE_QUALITY.md`.
 
 ### Langkah
 
@@ -25,6 +25,7 @@ Memperbaiki UI dashboard agar tidak terlihat generic/AI slop. Jika user tidak me
 /pi-plan-phase 1
 /build-loop 1 --dry-run
 /build-loop 1
+/pi-frontend-review 1
 /pi-design-review 1 --url http://localhost:5173
 # optional RalphLoop-style visual iteration
 /pi-design-loop 1 --url http://localhost:5173 --max-iterations 2
