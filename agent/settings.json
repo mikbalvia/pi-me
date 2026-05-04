@@ -1,0 +1,6 @@
+{
+  "lastChangelogVersion": "0.72.1",
+  "defaultProvider": "local-ai",
+  "defaultModel": "cx/gpt-5.5-high",
+  "defaultThinkingLevel": "high"
+}

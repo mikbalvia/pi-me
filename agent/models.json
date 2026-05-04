@@ -1,0 +1,265 @@
+{
+  "providers": {
+    "local-ai": {
+      "api": "openai-completions",
+      "apiKey": "!security find-generic-password -a \"$USER\" -s pi-9router-api-key -w 2>/dev/null || printf %s \"$PI_9ROUTER_API_KEY\"",
+      "baseUrl": "http://localhost:20128/v1",
+      "compat": {
+        "maxTokensField": "max_tokens",
+        "supportsDeveloperRole": false,
+        "supportsReasoningEffort": false,
+        "supportsUsageInStreaming": false,
+        "supportsStore": false,
+        "supportsStrictMode": false
+      },
+      "models": [
+        {
+          "contextWindow": 128000,
+          "id": "cx/gpt-5.5",
+          "maxTokens": 16384,
+          "name": "9R GPT 5.5"
+        },
+        {
+          "id": "cx/gpt-5.5-review",
+          "name": "9R GPT 5.5 Review",
+          "contextWindow": 128000,
+          "maxTokens": 16384
+        },
+        {
+          "contextWindow": 128000,
+          "id": "cx/gpt-5.4",
+          "maxTokens": 16384,
+          "name": "9R GPT 5.4"
+        },
+        {
+          "id": "cx/gpt-5.4-review",
+          "name": "9R GPT 5.4 Review",
+          "contextWindow": 128000,
+          "maxTokens": 16384
+        },
+        {
+          "contextWindow": 128000,
+          "id": "cx/gpt-5.3-codex",
+          "maxTokens": 16384,
+          "name": "9R GPT 5.3 Codex"
+        },
+        {
+          "id": "cx/gpt-5.3-codex-review",
+          "name": "9R GPT 5.3 Codex Review",
+          "contextWindow": 128000,
+          "maxTokens": 16384
+        },
+        {
+          "contextWindow": 128000,
+          "id": "cx/gpt-5.3-codex-xhigh",
+          "maxTokens": 16384,
+          "name": "9R GPT 5.3 Codex XHigh"
+        },
+        {
+          "id": "cx/gpt-5.3-codex-xhigh-review",
+          "name": "9R GPT 5.3 Codex XHigh Review",
+          "contextWindow": 128000,
+          "maxTokens": 16384
+        },
+        {
+          "contextWindow": 128000,
+          "id": "cx/gpt-5.3-codex-high",
+          "maxTokens": 16384,
+          "name": "9R GPT 5.3 Codex High"
+        },
+        {
+          "id": "cx/gpt-5.3-codex-high-review",
+          "name": "9R GPT 5.3 Codex High Review",
+          "contextWindow": 128000,
+          "maxTokens": 16384
+        },
+        {
+          "contextWindow": 128000,
+          "id": "cx/gpt-5.3-codex-low",
+          "maxTokens": 16384,
+          "name": "9R GPT 5.3 Codex Low"
+        },
+        {
+          "id": "cx/gpt-5.3-codex-low-review",
+          "name": "9R GPT 5.3 Codex Low Review",
+          "contextWindow": 128000,
+          "maxTokens": 16384
+        },
+        {
+          "contextWindow": 128000,
+          "id": "cx/gpt-5.3-codex-none",
+          "maxTokens": 16384,
+          "name": "9R GPT 5.3 Codex None"
+        },
+        {
+          "id": "cx/gpt-5.3-codex-none-review",
+          "name": "9R GPT 5.3 Codex None Review",
+          "contextWindow": 128000,
+          "maxTokens": 16384
+        },
+        {
+          "contextWindow": 128000,
+          "id": "cx/gpt-5.3-codex-spark",
+          "maxTokens": 16384,
+          "name": "9R GPT 5.3 Codex Spark"
+        },
+        {
+          "id": "cx/gpt-5.3-codex-spark-review",
+          "name": "9R GPT 5.3 Codex Spark Review",
+          "contextWindow": 128000,
+          "maxTokens": 16384
+        },
+        {
+          "contextWindow": 128000,
+          "id": "cx/gpt-5.1-codex-mini",
+          "maxTokens": 16384,
+          "name": "9R GPT 5.1 Codex Mini"
+        },
+        {
+          "id": "cx/gpt-5.1-codex-mini-review",
+          "name": "9R GPT 5.1 Codex Mini Review",
+          "contextWindow": 128000,
+          "maxTokens": 16384
+        },
+        {
+          "contextWindow": 128000,
+          "id": "cx/gpt-5.1-codex-mini-high",
+          "maxTokens": 16384,
+          "name": "9R GPT 5.1 Codex Mini High"
+        },
+        {
+          "id": "cx/gpt-5.1-codex-mini-high-review",
+          "name": "9R GPT 5.1 Codex Mini High Review",
+          "contextWindow": 128000,
+          "maxTokens": 16384
+        },
+        {
+          "contextWindow": 128000,
+          "id": "cx/gpt-5.2-codex",
+          "maxTokens": 16384,
+          "name": "9R GPT 5.2 Codex"
+        },
+        {
+          "id": "cx/gpt-5.2-codex-review",
+          "name": "9R GPT 5.2 Codex Review",
+          "contextWindow": 128000,
+          "maxTokens": 16384
+        },
+        {
+          "contextWindow": 128000,
+          "id": "cx/gpt-5.2",
+          "maxTokens": 16384,
+          "name": "9R GPT 5.2"
+        },
+        {
+          "id": "cx/gpt-5.2-review",
+          "name": "9R GPT 5.2 Review",
+          "contextWindow": 128000,
+          "maxTokens": 16384
+        },
+        {
+          "contextWindow": 128000,
+          "id": "cx/gpt-5.1-codex-max",
+          "maxTokens": 16384,
+          "name": "9R GPT 5.1 Codex Max"
+        },
+        {
+          "id": "cx/gpt-5.1-codex-max-review",
+          "name": "9R GPT 5.1 Codex Max Review",
+          "contextWindow": 128000,
+          "maxTokens": 16384
+        },
+        {
+          "contextWindow": 128000,
+          "id": "cx/gpt-5.1-codex",
+          "maxTokens": 16384,
+          "name": "9R GPT 5.1 Codex"
+        },
+        {
+          "id": "cx/gpt-5.1-codex-review",
+          "name": "9R GPT 5.1 Codex Review",
+          "contextWindow": 128000,
+          "maxTokens": 16384
+        },
+        {
+          "contextWindow": 128000,
+          "id": "cx/gpt-5.1",
+          "maxTokens": 16384,
+          "name": "9R GPT 5.1"
+        },
+        {
+          "id": "cx/gpt-5.1-review",
+          "name": "9R GPT 5.1 Review",
+          "contextWindow": 128000,
+          "maxTokens": 16384
+        },
+        {
+          "contextWindow": 128000,
+          "id": "cx/gpt-5-codex",
+          "maxTokens": 16384,
+          "name": "9R GPT 5 Codex"
+        },
+        {
+          "id": "cx/gpt-5-codex-review",
+          "name": "9R GPT 5 Codex Review",
+          "contextWindow": 128000,
+          "maxTokens": 16384
+        },
+        {
+          "contextWindow": 128000,
+          "id": "cx/gpt-5-codex-mini",
+          "maxTokens": 16384,
+          "name": "9R GPT 5 Codex Mini"
+        },
+        {
+          "id": "cx/gpt-5-codex-mini-review",
+          "name": "9R GPT 5 Codex Mini Review",
+          "contextWindow": 128000,
+          "maxTokens": 16384
+        },
+        {
+          "contextWindow": 128000,
+          "id": "cx/gpt-5.5-high",
+          "maxTokens": 16384,
+          "name": "9R GPT 5.5 High",
+          "reasoning": true
+        },
+        {
+          "contextWindow": 128000,
+          "id": "cx/gpt-5.5-xhigh",
+          "maxTokens": 16384,
+          "name": "9R GPT 5.5 XHigh",
+          "reasoning": true
+        },
+        {
+          "id": "ag/gemini-3.1-pro-high",
+          "name": "AG Gemini 3.1 Pro High",
+          "contextWindow": 128000,
+          "maxTokens": 16384
+        },
+        {
+          "id": "ag/gemini-3.1-pro-low",
+          "name": "AG Gemini 3.1 Pro Low",
+          "contextWindow": 128000,
+          "maxTokens": 16384
+        },
+        {
+          "id": "ag/gemini-3-flash",
+          "name": "AG Gemini 3 Flash",
+          "contextWindow": 128000,
+          "maxTokens": 16384
+        },
+        {
+          "id": "ag/gpt-oss-120b-medium",
+          "name": "AG GPT OSS 120b Medium",
+          "contextWindow": 128000,
+          "maxTokens": 16384
+        }
+      ],
+      "headers": {
+        "User-Agent": "curl/8.7.1",
+        "Accept": "*/*"
+      }
+    }
+  }
+}

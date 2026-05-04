@@ -1,0 +1,13 @@
+# macOS
+.DS_Store
+
+# Pi secrets / local state
+agent/auth.json
+agent/sessions/
+
+# Local binaries / machine-specific files
+agent/bin/
+
+# Backup files
+*.bak
+*.bak.*
