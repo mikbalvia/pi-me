@@ -6,7 +6,7 @@ Tujuannya: membuat kerja coding agent lebih terstruktur, bisa di-resume, punya g
 
 > Lokasi extension: `~/.pi/agent/extensions/pi-factory/index.ts`
 >
-> Status docs: MVP 3 UI/UX workflow. Default aman saat ini: `maxPhases=1`, `requireCheck=true`, `maxRetries=0`, `maxAgentTurns=20`, `childTimeoutMs=1200000`/20 menit, `childIdleTimeoutMs=300000`/5 menit. UI phase sekarang punya design source of truth, `UI-SPEC.md`, sketch workflow, screenshot/code design review, dan dashboard TUI.
+> Status docs: MVP 4 Senior Frontend UX workflow. Default aman saat ini: `maxPhases=1`, `requireCheck=true`, `maxRetries=0`, `maxAgentTurns=20`, `childTimeoutMs=1200000`/20 menit, `childIdleTimeoutMs=300000`/5 menit. UI phase sekarang punya Pi Senior Frontend Default, design source of truth, `UI-SPEC.md`, sketch workflow, screenshot/code design review, `/pi-design-loop`, build-loop UI quality gate, dan dashboard TUI.
 
 ---
 
@@ -41,6 +41,7 @@ Extension ini mendaftarkan command dan tool Pi Factory.
 ~/.pi/agent/skills/pi-superpowers/SKILL.md
 ~/.pi/agent/skills/pi-gsd/SKILL.md
 ~/.pi/agent/skills/pi-gstack/SKILL.md
+~/.pi/agent/skills/pi-frontend-ux/SKILL.md
 ```
 
 Fungsinya:
@@ -48,6 +49,7 @@ Fungsinya:
 - `pi-superpowers`: planning, TDD, verification discipline.
 - `pi-gsd`: project/phase workflow berbasis `.pi-factory/`.
 - `pi-gstack`: multi-role decision/review workflow.
+- `pi-frontend-ux`: senior frontend/UI/UX defaults, states, responsive, accessibility, copy, and visual quality gates.
 
 ### Prompt templates
 
@@ -150,7 +152,7 @@ Setiap project yang memakai Pi Factory akan punya folder:
 | `.pi-factory/ROADMAP.md` | Daftar fase, status, dan notes. |
 | `.pi-factory/STATE.md` | Log status phase dan event penting. |
 | `.pi-factory/config.json` | Default config untuk automation. |
-| `.pi-factory/DESIGN.md` | Design source of truth: personality, typography, color, spacing, components, copy, accessibility. |
+| `.pi-factory/DESIGN.md` | Design source of truth; seeded from `~/.pi/agent/design/SENIOR_FRONTEND_DEFAULT.md` when user gives no visual detail: personality, typography, color, spacing, components, copy, accessibility. |
 | `.pi-factory/sketches/*` | Throwaway HTML design explorations dan decision notes dari `/pi-sketch`. |
 | `.pi-factory/decisions/*.md` | Decision record hasil `/pi-decide` atau tool `pi_decision_record`. |
 | `.pi-factory/phases/*/CONTEXT.md` | Context, decisions, existing patterns, open questions untuk fase. |
@@ -231,6 +233,7 @@ Pi Factory v3 menambahkan lapisan design workflow yang diadaptasi dari GSD UI-SP
 | `/pi-ui-phase [phase]` | Membuat/update `UI-SPEC.md` untuk phase user-facing UI. |
 | `/pi-sketch <idea>` | Membuat throwaway HTML sketch 2-3 variant di `.pi-factory/sketches/`. |
 | `/pi-design-review [phase] [--url URL] [--fix] [--waive]` | 6-pillar UI audit dengan screenshot Playwright bila URL tersedia, fallback code heuristics bila tidak. |
+| `/pi-design-loop [phase] [--url URL] [--max-iterations N]` | RalphLoop-style UI loop: review → focused fix → re-review sampai pass atau iterasi habis. |
 | `/pi-dx-review [target]` | Developer experience audit prompt: onboarding, docs, CLI/API, errors, TTHW. |
 | `/pi-ship-review` | Final product/engineering/design/QA release gate. |
 
@@ -241,10 +244,12 @@ UI phase recommended flow:
 /pi-ui-phase 1
 /build-loop 1
 /pi-design-review 1 --url http://localhost:5173
+# atau auto-iterate visual fixes
+/pi-design-loop 1 --url http://localhost:5173 --max-iterations 2
 /pi-ship-review
 ```
 
-Ship gate default untuk UI: setiap pillar `/pi-design-review` minimal `3/4`, kecuali ada waiver eksplisit via decision record.
+Ship gate default untuk UI: setiap pillar `/pi-design-review` minimal `3/4`, kecuali ada waiver eksplisit via decision record. `/build-loop` sekarang dapat menjalankan UI quality gate otomatis untuk phase UI.
 
 ### 6.1 `/pi-new-project`
 
@@ -617,6 +622,19 @@ Output expected:
 ```
 
 ---
+
+
+### Senior Frontend Default
+
+Pi now carries a global default design that sticks across projects:
+
+```text
+~/.pi/agent/design/SENIOR_FRONTEND_DEFAULT.md
+```
+
+Rule: when the user asks for frontend/UI/UX work but gives no detailed visual direction, Pi applies this default instead of leaving design as TBD. Project-local `.pi-factory/DESIGN.md` and phase `UI-SPEC.md` can override it.
+
+Default characteristics: calm, clear, premium-but-not-flashy, restrained accent, 4px spacing grid, responsive mobile/tablet/desktop behavior, accessible controls, polished loading/empty/error/success/disabled/hover/focus states, and outcome-based copy.
 
 ### 6.11 Design/UI command details
 
@@ -1076,6 +1094,8 @@ Ulangi sampai semua phase verified.
 /build-loop 1 --dry-run
 /build-loop 1
 /pi-design-review 1 --url http://localhost:5173
+# atau auto-iterate visual fixes
+/pi-design-loop 1 --url http://localhost:5173 --max-iterations 2
 /pi-ship-review
 ```
 

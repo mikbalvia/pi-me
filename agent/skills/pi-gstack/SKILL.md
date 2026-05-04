@@ -45,7 +45,10 @@ Use these perspectives when reviewing a plan or answering `/pi-decide`:
 
 - Is the user/developer flow understandable?
 - Are names, defaults, errors, and docs clear?
-- Is the interface pleasant enough for MVP?
+- Does UI work apply `~/.pi/agent/design/SENIOR_FRONTEND_DEFAULT.md` when the user gives no detailed direction?
+- Is there a clear visual hierarchy, typography scale, color restraint, spacing system, responsive behavior, and accessibility path?
+- Are loading, empty, error, success, disabled, hover, and focus states specified?
+- Is the interface polished enough for senior frontend MVP quality, not generic AI/SaaS slop?
 
 ### QA / Security
 

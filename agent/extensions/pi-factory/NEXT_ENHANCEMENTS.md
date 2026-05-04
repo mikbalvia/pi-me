@@ -2,7 +2,7 @@
 
 Dokumen ini adalah roadmap setelah **MVP 3 UI/UX workflow baseline**. Untuk command dan penggunaan harian, baca `README.md`. Untuk contoh end-to-end, baca `USECASES.md`.
 
-## Status saat ini: MVP 3 UI/UX workflow implemented
+## Status saat ini: MVP 4 Senior Frontend UX workflow implemented
 
 Sudah ada:
 
@@ -44,9 +44,11 @@ Sudah ada:
 - GStack-style `/pi-decide` dan `/pi-review`.
 - Helper commands `/pi-factory-docs` dan `/pi-factory-next`.
 - UI/UX design layer:
-  - `.pi-factory/DESIGN.md` scaffold/source of truth.
+  - Global senior frontend default at `~/.pi/agent/design/SENIOR_FRONTEND_DEFAULT.md`.
+  - New `pi-frontend-ux` skill.
+  - `.pi-factory/DESIGN.md` scaffold/source of truth seeded from senior frontend defaults.
   - Phase `UI-SPEC.md` design contract.
-  - `/pi-design-system`, `/pi-ui-phase`, `/pi-sketch`, `/pi-design-review`, `/pi-dx-review`, `/pi-ship-review`.
+  - `/pi-design-system`, `/pi-ui-phase`, `/pi-sketch`, `/pi-design-review`, `/pi-design-loop`, `/pi-dx-review`, `/pi-ship-review`.
   - 6-pillar visual audit with Playwright screenshot capture when a live URL is available, fallback code heuristics otherwise.
   - `.pi-factory/sketches/` throwaway HTML variants + manifest.
 - Operator UX layer:

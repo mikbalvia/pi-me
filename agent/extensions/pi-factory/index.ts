@@ -13,7 +13,7 @@ import type { AgentToolResult } from "@mariozechner/pi-agent-core";
 import type { Message } from "@mariozechner/pi-ai";
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext, Theme } from "@mariozechner/pi-coding-agent";
 import type { Component } from "@mariozechner/pi-tui";
-import { Key, matchesKey, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
+import { Key, matchesKey, truncateToWidth } from "@mariozechner/pi-tui";
 import { Type } from "typebox";
 
 const FACTORY_DIR = ".pi-factory";
@@ -28,6 +28,7 @@ const DEFAULT_CHILD_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 const DEFAULT_MAX_AGENT_TURNS = 20;
 const DEFAULT_MAX_PHASES = 1;
 const MAX_RETRIES_DEFAULT = 0;
+const SENIOR_FRONTEND_DEFAULT_PATH = path.join(os.homedir(), ".pi", "agent", "design", "SENIOR_FRONTEND_DEFAULT.md");
 
 type PhaseStatus = "pending" | "context-ready" | "planned" | "running" | "blocked" | "failed" | "verified" | "done";
 
@@ -106,6 +107,10 @@ interface FactoryConfig {
 	maxDiffLines?: number;
 	requireCheck?: boolean;
 	maxAgentTurns?: number;
+	uiQualityGate?: "off" | "warn" | "block";
+	uiReviewMinScore?: number;
+	uiReviewRequireUrl?: boolean;
+	uiDesignLoopMaxIterations?: number;
 }
 
 interface EffectiveBuildOptions {
@@ -128,6 +133,10 @@ interface EffectiveBuildOptions {
 	allowProtectedChanges: boolean;
 	allowLargeDiff: boolean;
 	allowDangerousVerify: boolean;
+	uiQualityGate: "off" | "warn" | "block";
+	uiReviewMinScore: number;
+	uiReviewRequireUrl: boolean;
+	uiDesignLoopMaxIterations: number;
 }
 
 interface CheckResult {
@@ -285,6 +294,11 @@ function readJsonFile<T>(filePath: string): T {
 	return JSON.parse(readText(filePath)) as T;
 }
 
+function readSeniorFrontendDefault(): string {
+	if (!exists(SENIOR_FRONTEND_DEFAULT_PATH)) return "Pi Senior Frontend Default: calm, clear, premium-but-not-flashy, restrained accent, 4px grid, responsive, accessible, polished states, outcome-based copy.";
+	return readText(SENIOR_FRONTEND_DEFAULT_PATH);
+}
+
 function exists(filePath: string): boolean {
 	return fs.existsSync(filePath);
 }
@@ -310,6 +324,10 @@ function defaultConfig(): FactoryConfig {
 		maxChangedFiles: 40,
 		maxDiffLines: 2000,
 		requireCheck: true,
+		uiQualityGate: "block",
+		uiReviewMinScore: 3,
+		uiReviewRequireUrl: false,
+		uiDesignLoopMaxIterations: 2,
 	};
 }
 
@@ -354,6 +372,10 @@ function buildEffectiveOptions(parsed: ParsedArgs, config: FactoryConfig): Effec
 		allowProtectedChanges: hasFlag(parsed, "allow-protected-changes"),
 		allowLargeDiff: hasFlag(parsed, "allow-large-diff"),
 		allowDangerousVerify: hasFlag(parsed, "allow-dangerous-verify"),
+		uiQualityGate: (flagString(parsed, "ui-quality-gate") as "off" | "warn" | "block" | undefined) ?? config.uiQualityGate ?? "block",
+		uiReviewMinScore: flagNumberWithConfig(parsed, "ui-review-min-score", config.uiReviewMinScore, 3),
+		uiReviewRequireUrl: hasFlag(parsed, "ui-review-require-url") || (config.uiReviewRequireUrl ?? false),
+		uiDesignLoopMaxIterations: flagNumberWithConfig(parsed, "ui-design-loop-max-iterations", config.uiDesignLoopMaxIterations, 2),
 	};
 }
 
@@ -533,6 +555,7 @@ function discoverPhases(cwd: string): PhaseInfo[] {
 			if (veto) status = veto.status;
 			if (status === "pending" && exists(planPath)) status = "planned";
 			if (status === "pending" && exists(contextPath)) status = "context-ready";
+			if (exists(verificationPath) && readText(verificationPath).match(/UI Design Review[\s\S]*Status:\s*blocked/i)) status = "blocked";
 			return {
 				id,
 				slug,
@@ -872,11 +895,222 @@ function ensureFactory(cwd: string, idea = ""): string[] {
 }
 
 function designScaffold(projectName: string): string {
-	return `# Design System\n\nCreated: ${nowIso()}\nProject: ${projectName || "TBD"}\n\n## Product personality\n\n- Audience: TBD\n- Brand adjectives: clear, useful, trustworthy\n- Anti-goals: generic AI slop, inconsistent spacing, vague copy\n\n## Visual direction\n\n- Layout density: TBD\n- Shape language: TBD\n- Icon/illustration style: TBD\n- Motion: subtle, purposeful, never decorative-only\n\n## Typography\n\n- Display font: system default unless project has a brand font\n- Body font: system default unless project has a brand font\n- Scale: 12 / 14 / 16 / 20 / 24 / 32 / 40\n- Weights: regular, medium, semibold/bold only\n\n## Color\n\n- Dominant surface: TBD\n- Text: TBD\n- Muted: TBD\n- Primary accent: TBD\n- Success/warning/destructive: semantic use only\n- Rule: accent is reserved for primary actions and meaningful states, not every clickable element.\n\n## Spacing and layout\n\n- Base grid: 4px\n- Component padding: 8 / 12 / 16 / 24\n- Section spacing: 32 / 48 / 64\n- Max content width: TBD\n\n## Components\n\n- Buttons: primary, secondary, destructive, ghost\n- Forms: labels, help text, error text, disabled/loading states\n- Cards/panels: consistent border/radius/shadow rules\n- Navigation: active state, focus state, mobile behavior\n\n## Copywriting\n\n- CTAs should describe outcomes, not mechanics.\n- Empty states should explain what happened and what to do next.\n- Error messages should include cause, recovery, and support path where useful.\n- Avoid: Submit, OK, Click here, Something went wrong.\n\n## Accessibility\n\n- Keyboard reachable interactive controls\n- Visible focus states\n- ARIA labels for icon-only controls\n- Color contrast target: WCAG AA\n\n## Review gates\n\n- Before UI implementation: create/update phase UI-SPEC.md.\n- After UI implementation: run /pi-design-review.\n- Ship gate: all six design review pillars >= 3/4 or explicit waiver in decision record.\n`;
+	const defaultDesign = readSeniorFrontendDefault();
+	return `# Design System
+
+Created: ${nowIso()}
+Project: ${projectName || "TBD"}
+Baseline: Pi Senior Frontend Default Design (`~/.pi/agent/design/SENIOR_FRONTEND_DEFAULT.md`)
+
+## Design mode
+
+If the user has not provided detailed visual direction, apply the Pi Senior Frontend Default. Do not leave UI decisions as TBD unless the product requirement is genuinely unknown. Record assumptions here and refine later from screenshots/user feedback.
+
+## Product personality
+
+- Audience: users who need the product to feel clear, fast, trustworthy, and crafted.
+- Brand adjectives: calm, clear, premium-but-not-flashy, utilitarian, trustworthy.
+- Experience goal: users should know where they are, what matters, and what to do next within 3 seconds.
+- Anti-goals: generic SaaS template, random gradients, overdecorated AI slop, inconsistent spacing, vague copy.
+
+## Visual direction
+
+- Use neutral surfaces, disciplined spacing, strong hierarchy, and one meaningful accent.
+- Default shape language: 8px controls, 12px cards/panels, subtle borders before heavy shadows.
+- Motion: subtle, purposeful, respects reduced motion; never decorative-only.
+- Data/product screens should be scannable before they are decorative.
+
+## Typography
+
+- Display font: system UI unless the project already has brand fonts.
+- Body font: system UI unless the project already has brand fonts.
+- Scale: 12 / 14 / 16 / 20 / 24 / 32 / 40 / 48.
+- Weights: regular, medium, semibold/bold only.
+- Body line-height: 1.5-1.65; heading line-height: 1.1-1.25.
+- Rule: no arbitrary font sizes/weights without a local design reason.
+
+## Color
+
+- Light default: base #FAFAF9, surface #FFFFFF, border #E7E5E4, text #18181B, muted #71717A, accent #2563EB.
+- Dark default: base #0C0C0C, surface #141414, border #27272A, text #FAFAFA, muted #A1A1AA, accent #60A5FA.
+- Semantic: success #22C55E, warning #F59E0B, destructive #EF4444, info #3B82F6.
+- Rule: accent is reserved for primary actions, selected states, focus affordance, and meaningful data—not every clickable element.
+
+## Spacing and layout
+
+- Base grid: 4px.
+- Scale: 4 / 8 / 12 / 16 / 24 / 32 / 48 / 64.
+- Component padding: 8 / 12 / 16 / 24.
+- Section spacing: 32 / 48 / 64.
+- Max readable content width: 720-880px; app/dashboard shell: 1120-1280px.
+- Responsive: mobile 375px single-column, tablet 768px adapted layout, desktop 1440px full hierarchy.
+
+## Components
+
+- Buttons: primary, secondary, ghost, destructive; include hover, focus-visible, disabled, loading.
+- Forms: visible label, help text when useful, field-level error, disabled/loading, server error summary when needed.
+- Cards/panels: consistent border/radius/shadow; avoid nested cards unless hierarchy requires it.
+- Navigation: active state, focus state, mobile/collapsed behavior.
+- Tables/lists: loading, empty, row actions, overflow, mobile fallback.
+- Dialogs/drawers: clear title, escape/cancel path, focus handling where framework supports it.
+
+## State contract
+
+| State | Required UX | Copy rule | Visual rule |
+|---|---|---|---|
+| Loading | Stable layout; skeleton/spinner only where useful | Say what is loading if slow | No layout jump |
+| Empty | Explain what happened and next action | Outcome-oriented CTA | Calm illustration/icon optional |
+| Error | Cause if known + recovery | Avoid “Something went wrong” alone | Destructive color used sparingly |
+| Success | Confirm outcome and next step | Short, non-blocking | Success semantic only |
+| Disabled | Explain why if ambiguous | Avoid silent unavailable controls | Lower emphasis + accessible contrast |
+| Hover/focus | Discoverable and keyboard visible | N/A | Consistent focus-visible ring |
+
+## Copywriting
+
+- CTAs describe outcomes: “Create project”, “Send invite”, “Save changes”.
+- Empty states teach and move the user forward.
+- Error messages include cause, recovery, and support/debug path where useful.
+- Avoid: Submit, OK, Click here, No data, No results, Something went wrong.
+
+## Accessibility
+
+- Keyboard reachable interactive controls.
+- Visible focus-visible states.
+- ARIA labels for icon-only controls.
+- Inputs have labels; field errors are programmatically associated where possible.
+- Color contrast target: WCAG AA.
+- Respect reduced motion for non-essential animation.
+
+## Review gates
+
+- Before UI implementation: create/update phase UI-SPEC.md.
+- During implementation: use design tokens/classes and component states from this file.
+- After UI implementation: run /pi-design-review with a live URL where possible.
+- Ship gate: all six design review pillars >= 3/4 or explicit waiver in decision record.
+
+## Global default reference
+
+<details><summary>Pi Senior Frontend Default</summary>
+
+```md
+${defaultDesign.trim()}
+```
+
+</details>
+`;
 }
 
 function uiSpecScaffold(phase: PhaseInfo, goal = ""): string {
-	return `# UI-SPEC: Phase ${String(phase.id).padStart(2, "0")} ${phase.name}\n\nStatus: draft\nCreated: ${nowIso()}\n\n## Goal\n\n${goal || "TBD"}\n\n## Screens / routes / components affected\n\n- TBD\n\n## User flow\n\n1. TBD\n\n## Visual hierarchy\n\n- Primary focal point: TBD\n- Secondary actions: TBD\n- Information hierarchy: TBD\n- Avoid: competing CTAs, equal-weight everything, dense unlabeled controls\n\n## Typography contract\n\n- Page title: TBD\n- Section heading: TBD\n- Body text: TBD\n- Label/help/error text: TBD\n- Allowed weights: TBD\n\n## Color contract\n\n- Dominant surface: TBD\n- Primary action/accent: TBD\n- Muted/supporting UI: TBD\n- Success/warning/destructive: TBD\n- Accent usage rule: only on declared primary actions/states\n\n## Spacing / layout contract\n\n- Grid: 4px base\n- Container width: TBD\n- Section spacing: TBD\n- Component padding: TBD\n- Gap rules: TBD\n\n## State contract\n\n| State | Required UX | Copy | Visual treatment |\n|---|---|---|---|\n| Loading | TBD | TBD | TBD |\n| Empty | TBD | TBD | TBD |\n| Error | TBD | TBD | TBD |\n| Success | TBD | TBD | TBD |\n| Disabled | TBD | TBD | TBD |\n\n## Responsive contract\n\n| Viewport | Expected behavior |\n|---|---|\n| Mobile 375x812 | TBD |\n| Tablet 768x1024 | TBD |\n| Desktop 1440x900 | TBD |\n\n## Accessibility contract\n\n- Keyboard: TBD\n- Focus state: TBD\n- ARIA/labels: TBD\n- Contrast: TBD\n\n## Screenshot checkpoints\n\n- Desktop: TBD route/component\n- Tablet: TBD route/component\n- Mobile: TBD route/component\n\n## Acceptance criteria\n\n- [ ] UI matches DESIGN.md or documented local exception.\n- [ ] All declared states are implemented.\n- [ ] Mobile/tablet/desktop behavior is verified.\n- [ ] No generic copy patterns remain.\n- [ ] /pi-design-review score is >= 3/4 for every pillar or waiver is recorded.\n`;
+	return `# UI-SPEC: Phase ${String(phase.id).padStart(2, "0")} ${phase.name}
+
+Status: draft
+Created: ${nowIso()}
+Baseline: Pi Senior Frontend Default Design
+
+## Goal
+
+${goal || `Implement ${phase.name} with senior frontend quality using the project DESIGN.md and Pi Senior Frontend Default assumptions.`}
+
+## Default assumption mode
+
+User did not provide complete visual details unless this spec says otherwise. Apply the Pi Senior Frontend Default: calm, clear, premium-but-not-flashy, utilitarian, restrained accent, 4px grid, responsive, accessible, and polished states. Replace assumptions only when the user or existing product design provides stronger direction.
+
+## Screens / routes / components affected
+
+- Primary screen/component for this phase: infer from PLAN.md and existing route/component names.
+- Reuse existing project components/tokens/classes before creating new primitives.
+- Document any new component or token introduced by this phase.
+
+## User flow
+
+1. User arrives with a clear page/screen title and context.
+2. User sees the primary content or required empty/loading/error state.
+3. User has one obvious primary action and sensible secondary actions.
+4. User receives confirmation or useful recovery guidance after action.
+
+## Visual hierarchy
+
+- Primary focal point: page title + primary content/action.
+- Secondary actions: visually quieter than the primary action.
+- Information hierarchy: group related controls/content into clear sections.
+- Avoid: competing CTAs, equal-weight everything, dense unlabeled controls, decorative noise without function.
+
+## Typography contract
+
+- Page title: 32-48px or existing project H1 token.
+- Section heading: 20-24px or existing project H2/H3 token.
+- Body text: 14-16px with readable line-height.
+- Label/help/error text: 12-14px, direct and legible.
+- Allowed weights: regular, medium, semibold/bold only.
+
+## Color contract
+
+- Dominant surface: neutral base/surface from DESIGN.md or Pi default.
+- Primary action/accent: one accent only; use for primary action/selected/focus/data emphasis.
+- Muted/supporting UI: neutral text/border/background.
+- Success/warning/destructive: semantic use only.
+- Accent usage rule: do not color every clickable element.
+
+## Spacing / layout contract
+
+- Grid: 4px base.
+- Container width: readable content 720-880px; app/dashboard 1120-1280px unless existing layout differs.
+- Section spacing: 32 / 48 / 64.
+- Component padding: 8 / 12 / 16 / 24.
+- Gap rules: use 8/12/16 inside components, 24/32 between groups.
+- Avoid arbitrary spacing values unless matching existing design tokens.
+
+## State contract
+
+| State | Required UX | Copy | Visual treatment |
+|---|---|---|---|
+| Loading | Stable layout; spinner/skeleton where useful | “Loading …” only when helpful | No layout jump |
+| Empty | Explain what happened and next action | Specific, action-oriented | Calm panel/illustration optional |
+| Error | Cause if known + recovery path | Never only “Something went wrong” | Semantic destructive, not alarmist |
+| Success | Confirm outcome and next step | Short and non-blocking | Semantic success only |
+| Disabled | Explain why if ambiguous | Tooltip/help text if needed | Lower emphasis, accessible contrast |
+| Hover | Discover affordance | N/A | Subtle background/border/opacity change |
+| Focus | Keyboard-visible | N/A | Consistent focus-visible ring |
+
+## Responsive contract
+
+| Viewport | Expected behavior |
+|---|---|
+| Mobile 375x812 | Single column, no horizontal overflow, primary action reachable, readable tap targets |
+| Tablet 768x1024 | Adapted layout with preserved hierarchy and comfortable spacing |
+| Desktop 1440x900 | Full hierarchy, max width respected, no stretched unreadable lines |
+
+## Accessibility contract
+
+- Keyboard: all interactive controls reachable and operable.
+- Focus state: visible focus-visible style on links/buttons/inputs.
+- ARIA/labels: icon-only controls have labels; inputs have labels.
+- Contrast: target WCAG AA.
+- Motion: respect reduced motion for non-essential animation.
+
+## Copy contract
+
+- CTAs describe outcome, not mechanics.
+- Empty state says what happened, why it matters, and what to do next.
+- Error state says what failed and how to recover.
+- Avoid generic copy: Submit, OK, Click here, No data, Something went wrong.
+
+## Screenshot checkpoints
+
+- Desktop: relevant route/component at 1440x900.
+- Tablet: same flow at 768x1024.
+- Mobile: same flow at 375x812.
+
+## Acceptance criteria
+
+- [ ] UI matches `.pi-factory/DESIGN.md` or documents a local exception here.
+- [ ] All declared states are implemented or explicitly marked not applicable with reason.
+- [ ] Mobile/tablet/desktop behavior is verified.
+- [ ] Copy avoids generic patterns and describes outcomes/recovery.
+- [ ] Keyboard/focus/label accessibility is handled.
+- [ ] No random hardcoded colors/spacing when project tokens/classes exist.
+- [ ] `/pi-design-review` score is >= 3/4 for every pillar or waiver is recorded.
+`;
 }
 
 function createPhase(cwd: string, name: string): PhaseInfo {
@@ -920,19 +1154,170 @@ function createPhase(cwd: string, name: string): PhaseInfo {
 			2,
 		)}\n`,
 	);
-	writeIfMissing(phase.planPath, `# Phase ${String(id).padStart(2, "0")}: ${name}\n\n## Objective\n\nTBD\n\n## Files to read first\n\n- \`.pi-factory/PROJECT.md\`\n- \`.pi-factory/REQUIREMENTS.md\`\n- \`.pi-factory/ROADMAP.md\`\n- \`${path.relative(cwd, phase.contextPath)}\`\n- \`.pi-factory/DESIGN.md\` if this phase touches UI/UX\n- \`${path.relative(cwd, path.join(phase.dir, "UI-SPEC.md"))}\` if this phase touches UI/UX\n\n## Assumptions / locked decisions\n\n- TBD\n\n## UI/UX contract\n\nIf this phase changes user-facing UI, run \`/pi-ui-phase ${id}\` before implementation and keep this section aligned with \`UI-SPEC.md\`.\n\n- Visual hierarchy: TBD\n- Typography: TBD\n- Color: TBD\n- Spacing/layout: TBD\n- States: loading/empty/error/success TBD\n- Responsive: mobile/tablet/desktop TBD\n- Accessibility: keyboard/ARIA/contrast TBD\n\n## Tasks\n\n1. TBD\n\n## TDD requirements\n\n- Use TDD for behavior changes.\n- For UI behavior, add component/e2e/regression tests where the project supports them.\n\n## Verification commands\n\nPrefer this machine-readable format when possible:\n\n\`\`\`yaml\nverification:\n  - command: npm test\n    required: false\n    skip_if_missing_npm_script: test\n\`\`\`\n\n## Visual verification\n\nFor user-facing UI phases:\n\n- Run \`/pi-design-review ${id}\` after implementation.\n- Required viewports: mobile 375x812, tablet 768x1024, desktop 1440x900.\n- Block ship if any UI review pillar is below 3/4 unless explicitly waived.\n\n## Done criteria\n\n- TBD\n\n## Failure handling\n\n- Stop on verification failure and update SUMMARY.md.\n`);
+	writeIfMissing(phase.planPath, `# Phase ${String(id).padStart(2, "0")}: ${name}
+
+## Objective
+
+TBD
+
+## Files to read first
+
+- `.pi-factory/PROJECT.md`
+- `.pi-factory/REQUIREMENTS.md`
+- `.pi-factory/ROADMAP.md`
+- `${path.relative(cwd, phase.contextPath)}`
+- `.pi-factory/DESIGN.md` if this phase touches UI/UX
+- `~/.pi/agent/design/SENIOR_FRONTEND_DEFAULT.md` if this phase touches UI/UX
+- `${path.relative(cwd, path.join(phase.dir, "UI-SPEC.md"))}` if this phase touches UI/UX
+
+## Assumptions / locked decisions
+
+- TBD
+
+## UI/UX contract
+
+If this phase changes user-facing UI, run `/pi-ui-phase ${id}` before implementation and keep this section aligned with `UI-SPEC.md`. If user gives no detailed design direction, apply Pi Senior Frontend Default.
+
+- Visual hierarchy: one clear focal point and primary action.
+- Typography: project scale or 12/14/16/20/24/32/40/48 default.
+- Color: neutral surfaces, one accent, semantic state colors only.
+- Spacing/layout: 4px grid; 8/12/16/24/32/48 scale.
+- States: loading, empty, error, success, disabled, hover, focus.
+- Responsive: mobile 375x812, tablet 768x1024, desktop 1440x900.
+- Accessibility: keyboard reachability, visible focus, labels/ARIA, contrast-aware colors.
+
+## Tasks
+
+1. TBD
+
+## TDD requirements
+
+- Use TDD for behavior changes.
+- For UI behavior, add component/e2e/regression tests where the project supports them.
+
+## Verification commands
+
+Prefer this machine-readable format when possible:
+
+```yaml
+verification:
+  - command: npm test
+    required: false
+    skip_if_missing_npm_script: test
+```
+
+## Visual verification
+
+For user-facing UI phases:
+
+- Run `/pi-design-review ${id}` after implementation.
+- Required viewports: mobile 375x812, tablet 768x1024, desktop 1440x900.
+- Block ship if any UI review pillar is below 3/4 unless explicitly waived.
+
+## Done criteria
+
+- TBD
+
+## Failure handling
+
+- Stop on verification failure and update SUMMARY.md.
+`);
 	appendFile(factoryPath(cwd, "ROADMAP.md"), `| ${String(id).padStart(2, "0")} | ${name} | planned | ${path.relative(cwd, dir)} |\n`);
 	updateState(cwd, phase, "planned", "Phase scaffold created");
 	return { ...phase, hasPlan: true, hasContext: true, status: "planned" };
 }
 
 function buildPlannerPrompt(phase: PhaseInfo, args: string): string {
-	return `You are running Pi Factory phase planning. Use skills pi-gsd, pi-superpowers, and pi-gstack if available.\n\nGoal: create/update a high-quality executable PLAN.md for this phase.\n\nPhase: ${phase.id} ${phase.name}\nPhase dir: ${path.relative(process.cwd(), phase.dir)}\nUser args: ${args || "(none)"}\n\nRead these files if present:\n- .pi-factory/PROJECT.md\n- .pi-factory/REQUIREMENTS.md\n- .pi-factory/ROADMAP.md\n- .pi-factory/STATE.md\n- ${path.relative(process.cwd(), phase.contextPath)}\n\nWrite or update:\n- ${path.relative(process.cwd(), phase.planPath)}\n- ${path.relative(process.cwd(), phase.contractPath)}\n\nPLAN.md must include Objective, Files to read first, Assumptions/locked decisions, Tasks, TDD requirements, Verification commands, Done criteria, Failure handling.\n\nFor Verification commands, prefer a machine-readable block:\n\n\`\`\`yaml\nverification:\n  - command: npm test\n    required: false\n    skip_if_missing_npm_script: test\n  - command: npm run build\n    required: true\n    timeoutMs: 600000\n\`\`\`\n\nKeep language concrete; avoid ambiguous conditions like "if practical" unless encoded as required:false. Do not implement production code. Planning only. If details are missing, make explicit assumptions and list open questions.`;
+	return `You are running Pi Factory phase planning. Use skills pi-gsd, pi-superpowers, pi-gstack, and pi-frontend-ux if available.
+
+Goal: create/update a high-quality executable PLAN.md for this phase.
+
+Phase: ${phase.id} ${phase.name}
+Phase dir: ${path.relative(process.cwd(), phase.dir)}
+User args: ${args || "(none)"}
+
+Read these files if present:
+- .pi-factory/PROJECT.md
+- .pi-factory/REQUIREMENTS.md
+- .pi-factory/ROADMAP.md
+- .pi-factory/STATE.md
+- .pi-factory/DESIGN.md
+- ~/.pi/agent/design/SENIOR_FRONTEND_DEFAULT.md when this touches UI/frontend
+- ${path.relative(process.cwd(), phase.contextPath)}
+- ${path.relative(process.cwd(), path.join(phase.dir, "UI-SPEC.md"))} when this touches UI/frontend
+
+Write or update:
+- ${path.relative(process.cwd(), phase.planPath)}
+- ${path.relative(process.cwd(), phase.contractPath)}
+- ${path.relative(process.cwd(), path.join(phase.dir, "UI-SPEC.md"))} when this touches UI/frontend
+
+PLAN.md must include Objective, Files to read first, Assumptions/locked decisions, Tasks, TDD requirements, Verification commands, Done criteria, Failure handling.
+
+Frontend/UI/UX planning rules:
+- If user gives no detailed design direction, apply Pi Senior Frontend Default instead of leaving design TBD.
+- Ensure .pi-factory/DESIGN.md exists for UI projects; if missing, create it from the senior frontend default.
+- Ensure phase UI-SPEC.md exists for UI work and has no unresolved TBD in core sections.
+- PLAN.md must include concrete UI acceptance criteria: visual hierarchy, typography, color, spacing, states, responsive behavior, accessibility, and copy.
+- Include all required states: loading, empty, error, success, disabled, hover, focus; mark not-applicable states with reasons.
+- Add visual review gate: /pi-design-review ${phase.id} --url <local-url> when a dev server is available.
+- Avoid generic AI slop: random gradients, arbitrary spacing, hardcoded colors, vague CTAs, unlabeled controls.
+
+For Verification commands, prefer a machine-readable block:
+
+\`\`\`yaml
+verification:
+  - command: npm test
+    required: false
+    skip_if_missing_npm_script: test
+  - command: npm run build
+    required: true
+    timeoutMs: 600000
+\`\`\`
+
+Keep language concrete; avoid ambiguous conditions like "if practical" unless encoded as required:false. Do not implement production code. Planning only. If details are missing, make explicit assumptions and list open questions. UI/frontend assumptions should use the Pi Senior Frontend Default by default.`;
 }
 
 function buildExecutionPrompt(phase: PhaseInfo, verifyCommand?: string): string {
 	const rel = (p: string) => path.relative(process.cwd(), p);
-	return `You are a fresh child Pi executor for Pi Factory. Use skills pi-gsd and pi-superpowers if available.\n\nExecute exactly one phase.\n\nPhase: ${phase.id} ${phase.name}\nPhase directory: ${rel(phase.dir)}\nPlan: ${rel(phase.planPath)}\nContext: ${rel(phase.contextPath)}\n\nMandatory process:\n1. Read only the project/phase artifacts and the concrete files named in PLAN.md. Do not browse unrelated source files.\n2. Critically review the plan. If fatally unclear, stop and write SUMMARY.md with status: blocked.\n3. For behavior changes, follow TDD: write failing test, run and observe failure, implement minimum, run passing test, refactor.\n4. Execute only this phase. Do not start other phases.\n5. Run verification commands from PLAN.md${verifyCommand ? ` and this required command: ${verifyCommand}` : ""}.\n6. Write ${rel(phase.summaryPath)} with status, changed files, tasks completed, blockers.\n7. Write ${rel(phase.donePath)} as machine-readable JSON exactly like: {"status":"implemented","changedFiles":[],"verificationAttempted":true,"readyForParentVerification":true,"notes":""}.\n8. Write ${rel(phase.verificationPath)} with commands, exit codes, and key output.\n9. Return a concise final report and stop. Do not continue inspecting files after verification passes.\n\nImportant:\n- Do not claim completion without fresh verification evidence.\n- If verification fails, preserve logs and mark status: failed.\n- If blocked, mark status: blocked.\n- Keep changes focused and minimal.\n- Avoid broad audits, package vulnerability remediation, or unrelated cleanup unless explicitly required by the phase.\n- Keep the final answer very brief.\n\nReturn a concise final report with Status, Evidence, Changed files, and Follow-up.`;
+	return `You are a fresh child Pi executor for Pi Factory. Use skills pi-gsd, pi-superpowers, pi-gstack, and pi-frontend-ux if available.
+
+Execute exactly one phase.
+
+Phase: ${phase.id} ${phase.name}
+Phase directory: ${rel(phase.dir)}
+Plan: ${rel(phase.planPath)}
+Context: ${rel(phase.contextPath)}
+
+Mandatory process:
+1. Read only the project/phase artifacts and the concrete files named in PLAN.md. Do not browse unrelated source files.
+2. Critically review the plan. If fatally unclear, stop and write SUMMARY.md with status: blocked.
+3. For behavior changes, follow TDD: write failing test, run and observe failure, implement minimum, run passing test, refactor.
+4. Execute only this phase. Do not start other phases.
+5. Run verification commands from PLAN.md${verifyCommand ? ` and this required command: ${verifyCommand}` : ""}.
+6. Write ${rel(phase.summaryPath)} with status, changed files, tasks completed, blockers.
+7. Write ${rel(phase.donePath)} as machine-readable JSON exactly like: {"status":"implemented","changedFiles":[],"verificationAttempted":true,"readyForParentVerification":true,"notes":""}.
+8. Write ${rel(phase.verificationPath)} with commands, exit codes, and key output.
+9. Return a concise final report and stop. Do not continue inspecting files after verification passes.
+
+Frontend/UI/UX implementation rules:
+- If this phase touches UI/frontend, read .pi-factory/DESIGN.md, ${rel(path.join(phase.dir, "UI-SPEC.md"))}, and ~/.pi/agent/design/SENIOR_FRONTEND_DEFAULT.md if present.
+- If user gave no detailed visual direction, use Pi Senior Frontend Default: calm, clear, restrained, responsive, accessible, polished states.
+- Implement all relevant states: loading, empty, error, success, disabled, hover, focus; document not-applicable states.
+- Use project design tokens/classes/components where available. Do not introduce random hardcoded colors, arbitrary spacing, or one-off styles unless necessary and documented.
+- Preserve responsive behavior for mobile 375x812, tablet 768x1024, desktop 1440x900.
+- Ensure accessibility: keyboard reachability, visible focus, labels, aria-label for icon-only controls, contrast-conscious colors.
+- Improve copy quality: outcome-based CTAs, helpful empty/error copy, no generic “Submit”, “OK”, “No data”, or “Something went wrong” alone.
+- Keep visual changes focused on this phase. Do not redesign unrelated screens.
+
+Important:
+- Do not claim completion without fresh verification evidence.
+- If verification fails, preserve logs and mark status: failed.
+- If blocked, mark status: blocked.
+- Keep changes focused and minimal.
+- Avoid broad audits, package vulnerability remediation, or unrelated cleanup unless explicitly required by the phase.
+- Keep the final answer very brief.
+
+Return a concise final report with Status, Evidence, Changed files, and Follow-up.`;
 }
 
 function buildReviewPrompt(subject: string): string {
@@ -1022,8 +1407,20 @@ function checkPhaseReadiness(phase: PhaseInfo): CheckResult {
 	const files = getPlanSection(plan, "Files to read first");
 	if (!/`[^`]+`/.test(files) && !/\n\s*[-*]\s+\S+/.test(files)) shouldFix.push("Files to read first should list concrete paths.");
 	if (hasLikelyUiFiles(cwd, phase)) {
-		if (!exists(factoryPath(cwd, "DESIGN.md"))) shouldFix.push("User-facing/UI project appears to lack .pi-factory/DESIGN.md. Run /pi-design-system.");
-		if (!exists(path.join(phase.dir, "UI-SPEC.md"))) shouldFix.push("UI phase appears to lack UI-SPEC.md. Run /pi-ui-phase before implementation.");
+		const designPath = factoryPath(cwd, "DESIGN.md");
+		const uiSpecPath = path.join(phase.dir, "UI-SPEC.md");
+		if (!exists(designPath)) mustFix.push("User-facing/UI project lacks .pi-factory/DESIGN.md. Run /pi-design-system.");
+		if (!exists(uiSpecPath)) mustFix.push("UI phase lacks UI-SPEC.md. Run /pi-ui-phase before implementation.");
+		if (exists(uiSpecPath)) {
+			const spec = readText(uiSpecPath);
+			const criticalSections = ["Goal", "Visual hierarchy", "State contract", "Responsive contract", "Accessibility contract", "Acceptance criteria"];
+			for (const section of criticalSections) {
+				if (!new RegExp(`^#{2,4}\\s+${escapeRegExp(section)}`, "im").test(spec)) mustFix.push(`UI-SPEC.md missing ${section} section.`);
+			}
+			if (/\bTBD\b/i.test(spec)) mustFix.push("UI-SPEC.md still contains TBD; replace with Pi Senior Frontend Default assumptions or explicit not-applicable reasons.");
+		}
+		const uiContract = getPlanSection(plan, "UI/UX contract");
+		if (!uiContract.trim() || /\bTBD\b/i.test(uiContract)) shouldFix.push("PLAN.md UI/UX contract is missing or weak; sync it with UI-SPEC.md.");
 	}
 	return { phase, ready: mustFix.length === 0, mustFix, shouldFix, verificationSteps };
 }
@@ -1038,11 +1435,28 @@ function readDoneProtocol(phase: PhaseInfo): DoneProtocol | undefined {
 }
 
 function docsText(_cwd: string): string {
-	return `# Pi Factory Docs\n\nExtension: \`~/.pi/agent/extensions/pi-factory/index.ts\`\nDocs: \`~/.pi/agent/extensions/pi-factory/README.md\`\nUse cases: \`~/.pi/agent/extensions/pi-factory/USECASES.md\`\nNext enhancements: \`~/.pi/agent/extensions/pi-factory/NEXT_ENHANCEMENTS.md\`\n\n## Core commands\n- \`/pi-dashboard\` — Pi-native interactive factory cockpit\n- \`/pi-next\` — show next best action\n- \`/pi-status\` — phase status\n- \`/pi-factory-check [phase]\` — deterministic readiness check\n- \`/build-loop --dry-run\` — preview next phase + effective options\n- \`/build-loop --max-phases 1 --require-check\` — execute with readiness gate\n- \`/pi-plan-phase [phase]\` — create/refine PLAN.md\n\n## Design / UI / DX commands\n- \`/pi-design-system\` — create/update \`.pi-factory/DESIGN.md\`\n- \`/pi-ui-phase [phase]\` — create/update phase \`UI-SPEC.md\` design contract\n- \`/pi-sketch <idea>\` — create 2-3 throwaway HTML design variants\n- \`/pi-design-review [phase] [--url URL] [--fix] [--waive]\` — screenshot/code 6-pillar UI audit\n- \`/pi-dx-review\` — developer-experience audit prompt\n- \`/pi-ship-review\` — final product/eng/design/QA release gate\n`;
+	return `# Pi Factory Docs\n\nExtension: \`~/.pi/agent/extensions/pi-factory/index.ts\`\nDocs: \`~/.pi/agent/extensions/pi-factory/README.md\`\nUse cases: \`~/.pi/agent/extensions/pi-factory/USECASES.md\`\nNext enhancements: \`~/.pi/agent/extensions/pi-factory/NEXT_ENHANCEMENTS.md\`\n\n## Core commands\n- \`/pi-dashboard\` — Pi-native interactive factory cockpit\n- \`/pi-next\` — show next best action\n- \`/pi-status\` — phase status\n- \`/pi-factory-check [phase]\` — deterministic readiness check\n- \`/build-loop --dry-run\` — preview next phase + effective options\n- \`/build-loop --max-phases 1 --require-check\` — execute with readiness gate\n- \`/pi-plan-phase [phase]\` — create/refine PLAN.md\n\n## Design / UI / DX commands\n- \`/pi-design-system\` — create/update \`.pi-factory/DESIGN.md\`\n- \`/pi-ui-phase [phase]\` — create/update phase \`UI-SPEC.md\` design contract\n- \`/pi-sketch <idea>\` — create 2-3 throwaway HTML design variants\n- \`/pi-design-review [phase] [--url URL] [--fix] [--waive]\` — screenshot/code 6-pillar UI audit\n- \`/pi-design-loop [phase] [--url URL] [--max-iterations N]\` — review → focused fix → re-review UI loop\n- \`/pi-dx-review\` — developer-experience audit prompt\n- \`/pi-ship-review\` — final product/eng/design/QA release gate\n`;
 }
 
 function nextText(): string {
-	return `# Pi Factory MVP 2.1 Hardening\n\nImplemented focus areas:\n- Config loader: CLI flags > .pi-factory/config.json > defaults.\n- Structured verification extraction: YAML block, fenced shell block, Markdown table, inline backticks.\n- Readiness checker: /pi-factory-check and /pi-check.\n- Build-loop --require-check gate.\n- Child max-turn and idle-timeout guards.\n- DONE.json done protocol prompt + parent summary capture.\n- Parent safety audit for protected paths, changed file count, and diff size.\n- Dangerous verification command detector with --allow-dangerous-verify override.\n\nRecommended next hardening:\n- True sandbox/worktree child execution.\n- Project adapters (sveltekit-prisma, node, python, rust).\n- Strong phase.json contract validation.\n- Resume/crash recovery command.\n`;
+	return `# Pi Factory MVP 4 Senior Frontend UX
+
+Implemented focus areas:
+- Global Pi Senior Frontend Default at \`~/.pi/agent/design/SENIOR_FRONTEND_DEFAULT.md\`.
+- New \`pi-frontend-ux\` skill for senior UI/frontend discipline.
+- Opinionated DESIGN.md and UI-SPEC.md scaffolds with default assumptions instead of weak TBDs.
+- Planner/executor prompts now load frontend UX discipline and default design rules.
+- UI readiness gate: UI phases must have DESIGN.md and UI-SPEC.md without unresolved TBD.
+- Expanded UI code heuristics: copy, states, accessibility, responsive signals, arbitrary spacing/type/color, semantic controls.
+- Build-loop UI quality gate: verified UI phases run design review and block if score is below threshold.
+- \`/pi-design-loop\`: review → focused fix → re-review loop.
+
+Recommended next hardening:
+- True screenshot semantic analysis using image-capable model messages.
+- Browser-driven accessibility audit beyond code heuristics.
+- Project/taste memory commands: /pi-taste-learn and /pi-taste-review.
+- Worktree sandbox execution and phase contract dependency validation.
+`;
 }
 
 async function runVerification(pi: ExtensionAPI, cwd: string, phase: PhaseInfo, verifyCommand?: string, timeoutMs = DEFAULT_VERIFY_TIMEOUT_MS): Promise<VerificationResult[]> {
@@ -1182,29 +1596,58 @@ function uiCodeHeuristics(cwd: string): { findings: string[]; scores: Record<str
 		for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
 			const full = path.join(dir, entry.name);
 			if (entry.isDirectory()) {
-				if (!["node_modules", ".git", "dist", "build", ".svelte-kit"].includes(entry.name)) walk(full);
+				if (!["node_modules", ".git", "dist", "build", ".svelte-kit", "coverage"].includes(entry.name)) walk(full);
 			} else if (/\.(svelte|tsx|jsx|vue|html|css)$/.test(entry.name)) files.push(full);
 		}
 	};
 	for (const root of roots) walk(path.join(cwd, root));
-	for (const file of files.slice(0, 200)) text += `\n/* ${path.relative(cwd, file)} */\n${readText(file).slice(0, 30000)}`;
+	for (const file of files.slice(0, 250)) text += `\n/* ${path.relative(cwd, file)} */\n${readText(file).slice(0, 40000)}`;
+
 	const arbitrarySpacing = countRegexMatches(text, /\b[mp][trblxy]?\s*-\s*\[[^\]]+\]/g);
-	const hardcodedColors = countRegexMatches(text, /#[0-9a-fA-F]{3,8}\b|rgb\(|rgba\(/g);
+	const hardcodedColors = countRegexMatches(text, /#[0-9a-fA-F]{3,8}\b|rgb\(|rgba\(|hsl\(|hsla\(/g);
+	const arbitraryTypography = countRegexMatches(text, /\b(?:text|font|leading|tracking)-\[[^\]]+\]/g);
+	const gradients = countRegexMatches(text, /\b(?:bg-gradient|from-|via-|to-)\b/g);
+	const clickableDivs = countRegexMatches(text, /<div[^>]+(?:on:click|onClick|onclick)=/g);
+	const iconButtons = countRegexMatches(text, /<button(?=[\s\S]{0,240}(?:<svg|icon|Icon))/g);
+	const labelledIconButtons = countRegexMatches(text, /<button(?=[\s\S]{0,240}(?:<svg|icon|Icon))(?=[\s\S]{0,240}(?:aria-label|title=|sr-only))/g);
+	const inputs = countRegexMatches(text, /<(?:input|select|textarea)\b/g);
+	const labels = countRegexMatches(text, /<label\b|aria-label=|aria-labelledby=/g);
+	const disabledState = /disabled|aria-disabled|data-disabled/.test(text);
+	const loadingState = /loading|isLoading|pending|skeleton|spinner|aria-busy/.test(text);
+	const emptyState = /empty|No\s+\w+|nothing\s+to\s+show|belum ada|kosong/i.test(text);
+	const errorState = /error|destructive|danger|aria-invalid|Something went wrong|gagal|failed/i.test(text);
+	const focusState = /focus-visible|:focus-visible|focus:ring|focus:outline|focus:/.test(text);
+	const responsiveSignals = /\b(sm|md|lg|xl|2xl):|@media|clamp\(|minmax\(|grid-template-columns|auto-fit|auto-fill/.test(text);
+	const reducedMotion = /prefers-reduced-motion|motion-reduce|reduce-motion/.test(text);
 	const genericCopy = genericCopyFindings(cwd);
-	if (arbitrarySpacing > 8) findings.push(`High arbitrary spacing usage (${arbitrarySpacing}); prefer DESIGN.md spacing scale.`);
+
+	if (!files.length) findings.push("No obvious UI files found; visual score is limited to project structure.");
+	if (arbitrarySpacing > 8) findings.push(`High arbitrary spacing usage (${arbitrarySpacing}); prefer DESIGN.md spacing scale/tokens.`);
 	if (hardcodedColors > 8) findings.push(`High hardcoded color usage (${hardcodedColors}); prefer design tokens/classes.`);
+	if (arbitraryTypography > 4) findings.push(`High arbitrary typography usage (${arbitraryTypography}); prefer the project type scale.`);
+	if (gradients > 8) findings.push(`Heavy gradient usage (${gradients}); verify it is intentional and not generic AI decoration.`);
+	if (clickableDivs > 0) findings.push(`Clickable <div> usage (${clickableDivs}); prefer semantic button/link controls.`);
+	if (iconButtons > labelledIconButtons) findings.push(`Potential icon-only buttons without accessible labels (${iconButtons - labelledIconButtons}).`);
+	if (inputs > labels + 1) findings.push(`Potential unlabeled form controls (${inputs} inputs/selects/textareas vs ${labels} labels/ARIA labels).`);
+	if (!focusState && files.length) findings.push("No obvious focus-visible/focus styling found for keyboard users.");
+	if (!responsiveSignals && files.length) findings.push("No obvious responsive layout signals found; verify mobile/tablet/desktop behavior.");
+	if (!loadingState && files.length) findings.push("No obvious loading state handling found.");
+	if (!emptyState && files.length) findings.push("No obvious empty state handling found.");
+	if (!errorState && files.length) findings.push("No obvious error state handling found.");
+	if (!disabledState && files.length) findings.push("No obvious disabled state handling found.");
+	if (!reducedMotion && /transition|animate-|animation|duration-/.test(text)) findings.push("Motion detected without obvious reduced-motion handling.");
 	findings.push(...genericCopy);
-	return {
-		findings,
-		scores: {
-			copywriting: genericCopy.length ? 2 : 3,
-			visuals: files.length ? 3 : 2,
-			color: hardcodedColors > 8 ? 2 : 3,
-			typography: /text-\[[^\]]+\]|font-\[[^\]]+\]/.test(text) ? 2 : 3,
-			spacing: arbitrarySpacing > 8 ? 2 : 3,
-			interaction: /aria-|role=|on:click|onclick|onClick|href=/.test(text) ? 3 : 2,
-		},
+
+	const score = (base: number, penalties: number) => Math.max(1, Math.min(4, base - penalties));
+	const scores = {
+		copywriting: score(4, Math.min(3, genericCopy.length ? 1 + Math.floor(genericCopy.length / 4) : 0) + (!emptyState ? 1 : 0) + (!errorState ? 1 : 0)),
+		visuals: score(files.length ? 4 : 2, (gradients > 8 ? 1 : 0) + (hardcodedColors > 16 ? 1 : 0) + (!responsiveSignals ? 1 : 0)),
+		color: score(4, (hardcodedColors > 8 ? 1 : 0) + (hardcodedColors > 24 ? 1 : 0) + (gradients > 12 ? 1 : 0)),
+		typography: score(4, (arbitraryTypography > 4 ? 1 : 0) + (arbitraryTypography > 12 ? 1 : 0)),
+		spacing: score(4, (arbitrarySpacing > 8 ? 1 : 0) + (arbitrarySpacing > 24 ? 1 : 0)),
+		interaction: score(4, (clickableDivs > 0 ? 1 : 0) + (iconButtons > labelledIconButtons ? 1 : 0) + (!focusState ? 1 : 0) + (!loadingState || !errorState || !disabledState ? 1 : 0)),
 	};
+	return { findings: findings.slice(0, 40), scores };
 }
 
 function writeSummaryFile(phase: PhaseInfo, status: string, child: RunPiResult, verification: VerificationResult[], gitStatus: string, done?: DoneProtocol, safetyNotes: string[] = []): void {
@@ -1278,6 +1721,9 @@ interface DesignReviewOptions {
 	url?: string;
 	fix?: boolean;
 	waive?: boolean;
+	minScore?: number;
+	requireUrl?: boolean;
+	quiet?: boolean;
 }
 
 function scoreBar(score: number): string {
@@ -1291,7 +1737,7 @@ async function captureScreenshot(pi: ExtensionAPI, cwd: string, url: string, out
 	return { command, code: result.code, stdout: result.stdout, stderr: result.stderr, timeoutMs: 120_000 };
 }
 
-async function runDesignReview(pi: ExtensionAPI, ctx: ExtensionCommandContext, options: DesignReviewOptions): Promise<void> {
+async function runDesignReview(pi: ExtensionAPI, ctx: ExtensionCommandContext, options: DesignReviewOptions): Promise<{ status: "pass" | "blocked"; minScore: number; reportPath: string; scores: Record<string, number>; screenshotResults: VerificationResult[]; url?: string }> {
 	ensureFactory(ctx.cwd);
 	const phase = options.phase;
 	const reportDir = phase ? path.join(phase.dir, "ui-review") : factoryPath(ctx.cwd, "ui-reviews", timestampForFile());
@@ -1319,7 +1765,9 @@ async function runDesignReview(pi: ExtensionAPI, ctx: ExtensionCommandContext, o
 	const heuristics = uiCodeHeuristics(ctx.cwd);
 	const scores = heuristics.scores;
 	const minScore = Math.min(...Object.values(scores));
-	const status = options.waive || minScore >= 3 ? "pass" : "blocked";
+	const requiredMinScore = options.minScore ?? 3;
+	const screenshotOk = !options.requireUrl || Boolean(url && screenshotResults.length && screenshotResults.every((r) => r.code === 0));
+	const status = options.waive || (minScore >= requiredMinScore && screenshotOk) ? "pass" : "blocked";
 	const designPath = path.join(ctx.cwd, "DESIGN.md");
 	const piDesignPath = factoryPath(ctx.cwd, "DESIGN.md");
 	const uiSpecPath = phase ? path.join(phase.dir, "UI-SPEC.md") : undefined;
@@ -1329,25 +1777,53 @@ async function runDesignReview(pi: ExtensionAPI, ctx: ExtensionCommandContext, o
 	if (screenshotResults.length) {
 		for (const r of screenshotResults) body.push(`- \`${r.command}\`: exit ${r.code}`);
 		body.push(`- Directory: \`${path.relative(ctx.cwd, screenshotDir)}\``);
-	} else body.push("- No live URL detected. Run with `/pi-design-review <phase> --url http://localhost:PORT` for visual evidence.");
+	} else body.push(options.requireUrl ? "- BLOCK: live URL required but not detected/provided." : "- No live URL detected. Run with `/pi-design-review <phase> --url http://localhost:PORT` for visual evidence.");
 	body.push(``, `## Findings`, ``);
 	body.push(...(heuristics.findings.length ? heuristics.findings.map((f) => `- ${f}`) : ["- No blocking code heuristics found. Visual judgment still requires screenshot review."]));
 	body.push(``, `## Recommended fixes`, ``);
-	if (minScore < 3 && !options.waive) {
+	if ((minScore < requiredMinScore || !screenshotOk) && !options.waive) {
 		body.push("- Improve blocked pillars before shipping.", "- Re-run `/pi-design-review` after fixes.", "- If accepting tradeoff, record waiver with `/pi-decide` and rerun with `--waive`.");
 	} else {
 		body.push("- Keep screenshots and report as release evidence.");
 	}
-	body.push(``, `## Design review rules`, ``, "- 4 = excellent / contract met", "- 3 = good enough to ship", "- 2 = needs work", "- 1 = poor/blocking", "- Ship gate: every pillar >= 3/4 unless waiver is recorded.", "");
+	body.push(``, `## Design review rules`, ``, "- 4 = excellent / contract met", "- 3 = good enough to ship", "- 2 = needs work", "- 1 = poor/blocking", `- Ship gate: every pillar >= ${requiredMinScore}/4 unless waiver is recorded.`, "- Screenshot gate can be required by config or --require-url.", "");
 	const reportPath = path.join(reportDir, "UI-REVIEW.md");
 	fs.writeFileSync(reportPath, body.join("\n"), "utf-8");
 	if (phase) updateState(ctx.cwd, phase, status === "pass" ? "verified" : "blocked", `design review ${status}`);
-	pi.sendMessage({ customType: "pi-factory", content: `${body.slice(0, 35).join("\n")}\n\nReport: \`${path.relative(ctx.cwd, reportPath)}\``, display: true, details: { reportPath, scores, status, screenshotResults } }, { triggerTurn: false });
+	if (!options.quiet) pi.sendMessage({ customType: "pi-factory", content: `${body.slice(0, 35).join("\n")}\n\nReport: \`${path.relative(ctx.cwd, reportPath)}\``, display: true, details: { reportPath, scores, status, screenshotResults } }, { triggerTurn: false });
 
 	if (options.fix && status === "blocked") {
-		const prompt = `Use pi-gstack Design/DX and pi-superpowers discipline. Fix the UI design review findings in ${path.relative(ctx.cwd, reportPath)}. Read DESIGN.md/.pi-factory/DESIGN.md and UI-SPEC.md if present. Make focused visual/copy/accessibility fixes only. Capture before/after evidence where possible. Run project checks. Do not expand product scope.`;
+		const prompt = `Use pi-gstack Design/DX, pi-frontend-ux, and pi-superpowers discipline. Fix the UI design review findings in ${path.relative(ctx.cwd, reportPath)}. Read ~/.pi/agent/design/SENIOR_FRONTEND_DEFAULT.md, DESIGN.md/.pi-factory/DESIGN.md, and UI-SPEC.md if present. Make focused visual/copy/accessibility fixes only. Capture before/after evidence where possible. Run project checks. Do not expand product scope.`;
 		await commandSendOrDraft(pi, ctx, prompt, "Design fix");
 	}
+	return { status, minScore, reportPath, scores, screenshotResults, url };
+}
+
+async function runDesignLoop(pi: ExtensionAPI, ctx: ExtensionCommandContext, options: { phase?: PhaseInfo; url?: string; maxIterations?: number; minScore?: number; requireUrl?: boolean }): Promise<void> {
+	ensureFactory(ctx.cwd);
+	const phase = options.phase;
+	const maxIterations = Math.max(1, options.maxIterations ?? 2);
+	const loopDir = phase ? path.join(phase.dir, "design-loop") : factoryPath(ctx.cwd, "design-loops", timestampForFile());
+	ensureDir(loopDir);
+	const logPath = path.join(loopDir, "DESIGN-LOOP.md");
+	const entries: string[] = [`# Design Loop${phase ? `: Phase ${String(phase.id).padStart(2, "0")} ${phase.name}` : ""}`, ``, `Started: ${nowIso()}`, `Max iterations: ${maxIterations}`, ``];
+	let finalReview: Awaited<ReturnType<typeof runDesignReview>> | undefined;
+	for (let i = 1; i <= maxIterations; i++) {
+		ctx.ui.notify(`Design loop iteration ${i}/${maxIterations}`, "info");
+		const review = await runDesignReview(pi, ctx, { phase, url: options.url, minScore: options.minScore, requireUrl: options.requireUrl, quiet: true });
+		finalReview = review;
+		entries.push(`## Iteration ${i}`, ``, `- Status: ${review.status}`, `- Min score: ${review.minScore}/4`, `- Report: \`${path.relative(ctx.cwd, review.reportPath)}\``, `- URL: ${review.url ?? "not detected"}`, ``);
+		fs.writeFileSync(logPath, entries.join("\n"), "utf-8");
+		if (review.status === "pass") break;
+		if (i === maxIterations) break;
+		const prompt = `Use pi-frontend-ux, pi-gstack Design/DX, and pi-superpowers. Fix the blocked UI design review from ${path.relative(ctx.cwd, review.reportPath)}.\n\nRules:\n- Read ~/.pi/agent/design/SENIOR_FRONTEND_DEFAULT.md, .pi-factory/DESIGN.md, and phase UI-SPEC.md if present.\n- Make focused visual/copy/accessibility/responsive fixes only.\n- Do not expand product scope or touch unrelated screens.\n- Run available project checks.\n- Write a concise summary of changed files and evidence.\n`;
+		const fix = await runPiJson(prompt, ctx.cwd, { timeoutMs: DEFAULT_CHILD_TIMEOUT_MS, idleTimeoutMs: DEFAULT_CHILD_IDLE_TIMEOUT_MS, tools: "read,bash,edit,write", maxTurns: DEFAULT_MAX_AGENT_TURNS });
+		entries.push(`### Fix attempt ${i}`, ``, `- Exit: ${fix.exitCode}`, `- Stop reason: ${fix.stopReason ?? "unknown"}`, ``, "```", fix.finalOutput.slice(-4000), "```", ``);
+		fs.writeFileSync(path.join(loopDir, `FIX-${i}.json`), `${JSON.stringify({ exitCode: fix.exitCode, stderr: fix.stderr, finalOutput: fix.finalOutput, usage: fix.usage }, null, 2)}\n`, "utf-8");
+	}
+	entries.push(`## Final`, ``, `- Status: ${finalReview?.status ?? "not-run"}`, `- Min score: ${finalReview?.minScore ?? 0}/4`, `- Completed: ${nowIso()}`, ``);
+	fs.writeFileSync(logPath, entries.join("\n"), "utf-8");
+	pi.sendMessage({ customType: "pi-factory", content: `${entries.join("\n")}\nLog: \`${path.relative(ctx.cwd, logPath)}\``, display: true, details: { logPath, finalReview } }, { triggerTurn: false });
 }
 
 async function runBuildLoop(pi: ExtensionAPI, ctx: ExtensionCommandContext, rawArgs: string): Promise<void> {
@@ -1494,6 +1970,14 @@ async function runBuildLoop(pi: ExtensionAPI, ctx: ExtensionCommandContext, rawA
 		if (status === "verified" && !safety.ok) {
 			status = "blocked";
 			lastError = safety.notes.join("; ");
+		}
+		if (status === "verified" && options.uiQualityGate !== "off" && hasLikelyUiFiles(ctx.cwd, phase)) {
+			const designReview = await runDesignReview(pi, ctx, { phase, minScore: options.uiReviewMinScore, requireUrl: options.uiReviewRequireUrl, quiet: true });
+			appendFile(phase.verificationPath, `\n\n## UI Design Review\n\n- Report: \`${path.relative(ctx.cwd, designReview.reportPath)}\`\n- Status: ${designReview.status}\n- Min score: ${designReview.minScore}/4\n- URL: ${designReview.url ?? "not detected"}\n`);
+			if (designReview.status === "blocked") {
+				lastError = `UI design review blocked: min score ${designReview.minScore}/${options.uiReviewMinScore}; report ${path.relative(ctx.cwd, designReview.reportPath)}`;
+				if (options.uiQualityGate === "block") status = "blocked";
+			}
 		}
 		const gitStatus = await getGitStatus(pi, ctx.cwd);
 		writeSummaryFile(phase, status, child, verification, gitStatus, done, safety.notes);
@@ -1701,7 +2185,18 @@ export default function piFactory(pi: ExtensionAPI): void {
 			const parsed = parseArgs(args);
 			const phase = findPhase(ctx.cwd, parsed.positionals[0]);
 			const url = flagString(parsed, "url") ?? (parsed.positionals.find((p) => /^https?:\/\//.test(p)) || undefined);
-			await runDesignReview(pi, ctx, { phase, url, fix: hasFlag(parsed, "fix"), waive: hasFlag(parsed, "waive") });
+			await runDesignReview(pi, ctx, { phase, url, fix: hasFlag(parsed, "fix"), waive: hasFlag(parsed, "waive"), minScore: flagNumberOptional(parsed, "min-score"), requireUrl: hasFlag(parsed, "require-url") });
+		},
+	});
+
+	pi.registerCommand("pi-design-loop", {
+		description: "Iterate UI review -> focused fix -> re-review until pass or max iterations",
+		handler: async (args, ctx) => {
+			ensureFactory(ctx.cwd);
+			const parsed = parseArgs(args);
+			const phase = findPhase(ctx.cwd, parsed.positionals[0]);
+			const url = flagString(parsed, "url") ?? (parsed.positionals.find((p) => /^https?:\/\//.test(p)) || undefined);
+			await runDesignLoop(pi, ctx, { phase, url, maxIterations: flagNumberOptional(parsed, "max-iterations"), minScore: flagNumberOptional(parsed, "min-score"), requireUrl: hasFlag(parsed, "require-url") });
 		},
 	});
 
@@ -1788,7 +2283,7 @@ export default function piFactory(pi: ExtensionAPI): void {
 
 	const autoplanHandler = async (args: string, ctx: ExtensionCommandContext) => {
 		ensureFactory(ctx.cwd, args.trim());
-		const prompt = `Use pi-gstack, pi-gsd, and pi-superpowers. Run a Pi Factory autoplan for:\n\n${args.trim() || "the current project"}\n\nProcess:\n1. Office-hours style product interrogation: identify goal, user, constraints, non-goals.\n2. CEO/Product review for scope.\n3. Engineering review for architecture and sequencing.\n4. Design/DX and QA review.\n5. Write/update .pi-factory/PROJECT.md, REQUIREMENTS.md, ROADMAP.md, STATE.md.\n6. Create small phase directories under .pi-factory/phases with CONTEXT.md and PLAN.md where enough information exists.\n\nDo not implement production code. End with next recommended command, usually /build-loop --dry-run.`;
+		const prompt = `Use pi-gstack, pi-gsd, pi-superpowers, and pi-frontend-ux. Run a Pi Factory autoplan for:\n\n${args.trim() || "the current project"}\n\nProcess:\n1. Office-hours style product interrogation: identify goal, user, constraints, non-goals.\n2. CEO/Product review for scope.\n3. Engineering review for architecture and sequencing.\n4. Design/DX and QA review.\n5. If this touches UI/frontend and user gave no detailed visual direction, apply Pi Senior Frontend Default from ~/.pi/agent/design/SENIOR_FRONTEND_DEFAULT.md.\n6. Write/update .pi-factory/PROJECT.md, REQUIREMENTS.md, ROADMAP.md, STATE.md, and .pi-factory/DESIGN.md for UI projects.\n7. Create small phase directories under .pi-factory/phases with CONTEXT.md, PLAN.md, and UI-SPEC.md for UI phases where enough information exists.\n\nDo not implement production code. End with next recommended command, usually /build-loop --dry-run.`;
 		await commandSendOrDraft(pi, ctx, prompt, "Autoplan");
 	};
 

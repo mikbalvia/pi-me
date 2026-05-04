@@ -37,6 +37,8 @@ GREEN → implement minimum code to pass
 REFACTOR → clean up while keeping tests green
 ```
 
+For UI/frontend behavior changes, TDD can be component/e2e/state tests where the project supports them. If visual-only polish cannot be unit-tested, record visual acceptance criteria and run `/pi-design-review` with screenshot evidence where possible.
+
 RED requirements:
 
 - Test one behavior.
@@ -78,8 +80,9 @@ Before saying anything is done/fixed/passing:
 1. Identify what command proves the claim.
 2. Run it fresh.
 3. Read exit code and output.
-4. Report exact evidence.
-5. If verification fails, say so plainly and preserve logs.
+4. For UI/frontend work, also run or request `/pi-design-review` when a visual quality claim is being made.
+5. Report exact evidence.
+6. If verification fails, say so plainly and preserve logs.
 
 Use language like:
 
