@@ -31,7 +31,7 @@ const MAX_RETRIES_DEFAULT = 0;
 const SENIOR_FRONTEND_DEFAULT_PATH = path.join(os.homedir(), ".pi", "agent", "design", "SENIOR_FRONTEND_DEFAULT.md");
 const FRONTEND_CODE_QUALITY_PATH = path.join(os.homedir(), ".pi", "agent", "design", "FRONTEND_CODE_QUALITY.md");
 
-type PhaseStatus = "pending" | "context-ready" | "planned" | "running" | "blocked" | "failed" | "verified" | "done";
+type PhaseStatus = "pending" | "context-ready" | "planned" | "ready" | "running" | "blocked" | "failed" | "verified" | "done";
 
 interface PhaseInfo {
 	id: number;
@@ -462,7 +462,7 @@ function escapeRegExp(input: string): string {
 
 function maybeStatus(raw: string): PhaseStatus | undefined {
 	const s = raw.toLowerCase().trim();
-	if (["pending", "context-ready", "planned", "running", "blocked", "failed", "verified", "done"].includes(s)) return s as PhaseStatus;
+	if (["pending", "context-ready", "planned", "ready", "running", "blocked", "failed", "verified", "done"].includes(s)) return s as PhaseStatus;
 	return undefined;
 }
 
@@ -497,13 +497,14 @@ function parsePhaseStatus(content: string, id: number, slug: string): PhaseStatu
 
 function normalizeStatus(raw: string): PhaseStatus {
 	const s = raw.toLowerCase().trim();
-	if (["pending", "context-ready", "planned", "running", "blocked", "failed", "verified", "done"].includes(s)) {
+	if (["pending", "context-ready", "planned", "ready", "running", "blocked", "failed", "verified", "done"].includes(s)) {
 		return s as PhaseStatus;
 	}
 	if (s.includes("done")) return "done";
 	if (s.includes("verified")) return "verified";
 	if (s.includes("fail")) return "failed";
 	if (s.includes("block")) return "blocked";
+	if (s.includes("ready")) return "ready";
 	if (s.includes("run")) return "running";
 	if (s.includes("plan")) return "planned";
 	return "pending";
@@ -1386,12 +1387,14 @@ function nextActionText(cwd: string): string {
 	const phases = discoverPhases(cwd);
 	if (!exists(factoryPath(cwd, "DESIGN.md")) && hasLikelyUiFiles(cwd)) return "/pi-design-system";
 	if (!phases.length) return "/pi-create-phase <name>";
-	const next = phases.find((p) => p.hasPlan && !["done", "verified"].includes(p.status)) ?? phases.find((p) => !p.hasPlan || !p.hasContext);
-	if (!next) return "/pi-review current git diff or /pi-ship-review";
-	const check = checkPhaseReadiness(next);
-	if (!check.ready) return `/pi-plan-phase ${next.id}`;
-	if (hasLikelyUiFiles(cwd, next) && !exists(path.join(next.dir, "UI-SPEC.md"))) return `/pi-ui-phase ${next.id}`;
-	return `/build-loop ${next.id} --dry-run`;
+	const active = phases.filter((p) => !["done", "verified"].includes(p.status));
+	const actionable = active.find((p) => p.status === "ready") ?? active.find((p) => p.status !== "planned" && p.hasPlan) ?? active.find((p) => p.hasPlan) ?? active.find((p) => !p.hasPlan || !p.hasContext);
+	if (!actionable) return "/pi-review current git diff or /pi-ship-review";
+	const check = checkPhaseReadiness(actionable);
+	if (!check.ready) return `/pi-plan-phase ${actionable.id}`;
+	if (hasLikelyUiFiles(cwd, actionable) && !exists(path.join(actionable.dir, "UI-SPEC.md"))) return `/pi-ui-phase ${actionable.id}`;
+	if (actionable.status === "planned") return `/build-loop ${actionable.id} --dry-run`;
+	return `/build-loop ${actionable.id}`;
 }
 
 function statusText(cwd: string): string {
@@ -2041,7 +2044,13 @@ async function runBuildLoop(pi: ExtensionAPI, ctx: ExtensionCommandContext, rawA
 			const check = checkPhaseReadiness(p);
 			return `${String(p.id).padStart(2, "0")} ${p.name} (${p.status}) — ${check.ready ? "ready" : "not ready"}`;
 		}).join("\n");
-		pi.sendMessage({ customType: "pi-factory", content: `# Build Loop Dry Run\n\nWould execute:\n\n${list}\n\nEffective options:\n\n\`\`\`json\n${JSON.stringify(options, null, 2)}\n\`\`\``, display: true }, { triggerTurn: false });
+		for (const phase of phases) {
+			if (phase.status === "planned" && checkPhaseReadiness(phase).ready) {
+				updateState(ctx.cwd, phase, "ready", "dry-run readiness check passed; ready for execution");
+			}
+		}
+		const executeCommand = `/build-loop ${phases[0]?.id ?? ""}`.trim();
+		pi.sendMessage({ customType: "pi-factory", content: `# Build Loop Dry Run\n\nWould execute:\n\n${list}\n\nDry-run completed. No implementation was executed.\n\nNext command to execute for real:\n\n\`${executeCommand}\`\n\nEffective options:\n\n\`\`\`json\n${JSON.stringify(options, null, 2)}\n\`\`\``, display: true }, { triggerTurn: false });
 		fs.writeFileSync(runLogPath, `${JSON.stringify({ ...runRecord, endedAt: nowIso() }, null, 2)}\n`, "utf-8");
 		return;
 	}
