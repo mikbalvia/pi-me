@@ -230,6 +230,9 @@ Pi Factory v3 menambahkan lapisan design workflow yang diadaptasi dari GSD UI-SP
 |---|---|
 | `/pi-dashboard` | Pi-native interactive dashboard: pilih phase, dry-run, plan, design review, next action. |
 | `/pi-next` | Menampilkan next best action berdasarkan `.pi-factory` state. |
+| `/pi-auto-next [--execute]` | Menjalankan rekomendasi `/pi-next` satu langkah; `--execute` melewati dry-run dan langsung eksekusi phase yang ready. |
+| `/pi-auto-plan <goal>` | Alias autoplan yang diarahkan ke flow satu-command berikutnya: setelah plan selesai, jalankan `/pi-run-all`. |
+| `/pi-run-all [--max-phases N] [--max-steps N]` / `/run-all` | Mengikuti `/pi-next` otomatis dan menjalankan build-loop phase demi phase sampai selesai atau blocked. |
 | `/pi-factory-wizard` | Guided setup untuk project/phase, termasuk opsi UI/UX. |
 | `/pi-design-system [context]` | Membuat/update `.pi-factory/DESIGN.md` sebagai design source of truth. |
 | `/pi-ui-phase [phase]` | Membuat/update `UI-SPEC.md` untuk phase user-facing UI. |
@@ -240,7 +243,15 @@ Pi Factory v3 menambahkan lapisan design workflow yang diadaptasi dari GSD UI-SP
 | `/pi-dx-review [target]` | Developer experience audit prompt: onboarding, docs, CLI/API, errors, TTHW. |
 | `/pi-ship-review` | Final product/engineering/design/QA release gate. |
 
-UI phase recommended flow:
+Recommended one-command flow:
+
+```text
+/pi-auto-plan <goal>
+# setelah autoplan selesai membuat .pi-factory/phases
+/pi-run-all
+```
+
+Manual UI phase flow masih tersedia:
 
 ```text
 /pi-design-system "brand/product direction"
@@ -697,6 +708,28 @@ phase not planned   -> /pi-plan-phase <phase>
 UI phase no spec    -> /pi-ui-phase <phase>
 ready phase         -> /build-loop <phase> --dry-run
 all done            -> /pi-review current git diff or /pi-ship-review
+```
+
+#### `/pi-auto-next`, `/pi-auto-plan`, `/pi-run-all`
+
+Untuk mengurangi command manual:
+
+```text
+/pi-auto-plan <goal>
+/pi-run-all
+```
+
+- `/pi-auto-plan` membuat/refine `.pi-factory` project, roadmap, phase plan, design/code-quality gate.
+- `/pi-auto-next` menjalankan rekomendasi `/pi-next` satu langkah.
+- `/pi-run-all` menjalankan planning/design child jika masih dibutuhkan, lalu menjalankan executable phase otomatis mengikuti `/pi-next` sampai semua phase verified/done atau ada blocker.
+- Jika tidak ada `.pi-factory` dan goal tidak diberikan ke `/pi-run-all`, command akan stop dan meminta `/pi-auto-plan <goal>` dulu.
+
+Options:
+
+```text
+/pi-run-all --max-phases 3
+/pi-run-all --max-steps 20
+/pi-auto-next --execute
 ```
 
 #### `/pi-design-system`

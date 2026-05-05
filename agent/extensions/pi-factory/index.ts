@@ -1382,7 +1382,54 @@ async function commandSendOrDraft(pi: ExtensionAPI, ctx: ExtensionCommandContext
 	pi.sendUserMessage(prompt);
 }
 
-function nextActionText(cwd: string): string {
+function buildDesignSystemPrompt(cwd: string, input: string): string {
+	const designPath = factoryPath(cwd, "DESIGN.md");
+	return `Use pi-gstack Design/DX and CEO/Product perspectives. Create or update ${path.relative(cwd, designPath)} as the product design source of truth.
+
+Input/context: ${input || "current project"}
+
+Read PROJECT.md, REQUIREMENTS.md, existing UI files, screenshots if available, and any existing DESIGN.md.
+
+Output must cover: product personality, visual direction, typography, color, spacing/layout, components, copywriting, accessibility, and review gates. Ask concise questions only when required. Do not implement production code.`;
+}
+
+function buildUiPhasePrompt(cwd: string, phase: PhaseInfo, specPath: string): string {
+	return `Use pi-gstack Design/DX, QA/Security, and pi-superpowers planning discipline. Create/update the UI design contract for Phase ${phase.id} ${phase.name}.
+
+Read:
+- .pi-factory/DESIGN.md if present
+- .pi-factory/PROJECT.md
+- .pi-factory/REQUIREMENTS.md
+- ${path.relative(cwd, phase.contextPath)}
+- ${path.relative(cwd, phase.planPath)}
+- relevant UI files only
+
+Write/update:
+- ${path.relative(cwd, specPath)}
+- ${path.relative(cwd, phase.planPath)} UI/UX contract section if needed
+
+UI-SPEC must include screens/routes/components, user flow, visual hierarchy, typography, color, spacing, states, responsive rules, accessibility, screenshot checkpoints, and acceptance criteria. Do not implement production code.`;
+}
+
+function buildAutoPlanPrompt(goal: string): string {
+	return `Use pi-gstack, pi-gsd, pi-superpowers, pi-frontend-ux, and pi-frontend-engineering. Run a Pi Factory autoplan for:
+
+${goal || "the current project"}
+
+Process:
+1. Office-hours style product interrogation: identify goal, user, constraints, non-goals.
+2. CEO/Product review for scope.
+3. Engineering review for architecture and sequencing.
+4. Design/DX and QA review.
+5. If this touches UI/frontend and user gave no detailed visual direction, apply Pi Senior Frontend Default from ~/.pi/agent/design/SENIOR_FRONTEND_DEFAULT.md.
+6. For frontend code phases, apply ~/.pi/agent/design/FRONTEND_CODE_QUALITY.md and include explicit code quality contracts.
+7. Write/update .pi-factory/PROJECT.md, REQUIREMENTS.md, ROADMAP.md, STATE.md, and .pi-factory/DESIGN.md for UI projects.
+8. Create small phase directories under .pi-factory/phases with CONTEXT.md, PLAN.md, UI-SPEC.md for UI phases, and frontend review gates where enough information exists.
+
+Do not implement production code. End with next recommended command: /pi-run-all.`;
+}
+
+function nextActionText(cwd: string, options: { execute?: boolean } = {}): string {
 	if (!exists(factoryPath(cwd))) return "/pi-autoplan <goal>";
 	const phases = discoverPhases(cwd);
 	if (!exists(factoryPath(cwd, "DESIGN.md")) && hasLikelyUiFiles(cwd)) return "/pi-design-system";
@@ -1393,7 +1440,7 @@ function nextActionText(cwd: string): string {
 	const check = checkPhaseReadiness(actionable);
 	if (!check.ready) return `/pi-plan-phase ${actionable.id}`;
 	if (hasLikelyUiFiles(cwd, actionable) && !exists(path.join(actionable.dir, "UI-SPEC.md"))) return `/pi-ui-phase ${actionable.id}`;
-	if (actionable.status === "planned") return `/build-loop ${actionable.id} --dry-run`;
+	if (!options.execute && actionable.status === "planned") return `/build-loop ${actionable.id} --dry-run`;
 	return `/build-loop ${actionable.id}`;
 }
 
@@ -2199,6 +2246,171 @@ async function runBuildLoop(pi: ExtensionAPI, ctx: ExtensionCommandContext, rawA
 	);
 }
 
+async function runPiNextAction(pi: ExtensionAPI, ctx: ExtensionCommandContext, rawArgs: string): Promise<{ action: string; executed: boolean; stopReason?: string }> {
+	const parsed = parseArgs(rawArgs);
+	const execute = hasFlag(parsed, "execute");
+	const action = nextActionText(ctx.cwd, { execute });
+
+	if (action.startsWith("/pi-autoplan")) {
+		const goal = parsed.positionals.join(" ").trim();
+		if (!goal) {
+			pi.sendMessage({ customType: "pi-factory", content: `# Pi Auto Next\n\nStopped: project has no Pi Factory plan yet.\n\nRun first:\n\n\`/pi-auto-plan <goal>\``, display: true }, { triggerTurn: false });
+			return { action, executed: false, stopReason: "missing project plan" };
+		}
+		pi.sendUserMessage(`/pi-auto-plan ${goal}`, { deliverAs: ctx.isIdle() ? undefined : "followUp" } as any);
+		return { action: `/pi-auto-plan ${goal}`, executed: true };
+	}
+
+	if (action.startsWith("/pi-design-system")) {
+		ensureFactory(ctx.cwd, parsed.positionals.join(" "));
+		const input = parsed.positionals.join(" ") || path.basename(ctx.cwd);
+		const designPath = factoryPath(ctx.cwd, "DESIGN.md");
+		writeIfMissing(designPath, designScaffold(input));
+		await commandSendOrDraft(pi, ctx, buildDesignSystemPrompt(ctx.cwd, input), "Design system");
+		return { action, executed: true };
+	}
+
+	if (action.startsWith("/pi-ui-phase")) {
+		const phaseId = action.split(/\s+/)[1];
+		const phase = findPhase(ctx.cwd, phaseId);
+		if (!phase) return { action, executed: false, stopReason: "phase not found" };
+		const specPath = path.join(phase.dir, "UI-SPEC.md");
+		writeIfMissing(specPath, uiSpecScaffold(phase));
+		await commandSendOrDraft(pi, ctx, buildUiPhasePrompt(ctx.cwd, phase, specPath), "UI phase contract");
+		return { action, executed: true };
+	}
+
+	if (action.startsWith("/pi-plan-phase")) {
+		const phaseId = action.split(/\s+/)[1];
+		const phase = findPhase(ctx.cwd, phaseId);
+		if (!phase) return { action, executed: false, stopReason: "phase not found" };
+		await commandSendOrDraft(pi, ctx, buildPlannerPrompt(phase, phaseId), "Phase planning");
+		return { action, executed: true };
+	}
+
+	if (action.startsWith("/build-loop")) {
+		const args = action.replace(/^\/build-loop\s*/, "").trim();
+		await runBuildLoop(pi, ctx, args);
+		return { action, executed: true };
+	}
+
+	pi.sendMessage({ customType: "pi-factory", content: `# Pi Auto Next\n\nNo auto-executable action found.\n\nRecommended manual action:\n\n\`${action}\``, display: true }, { triggerTurn: false });
+	return { action, executed: false, stopReason: "manual action required" };
+}
+
+async function runPiRunAll(pi: ExtensionAPI, ctx: ExtensionCommandContext, rawArgs: string): Promise<void> {
+	const parsed = parseArgs(rawArgs);
+	const maxSteps = flagNumberOptional(parsed, "max-steps") ?? 50;
+	const maxPhases = flagNumberOptional(parsed, "max-phases") ?? 999;
+	const autoPlanGoal = parsed.positionals.join(" ").trim();
+	const log: string[] = [`# Pi Run All`, ``, `Started: ${nowIso()}`, `Max steps: ${maxSteps}`, `Max phases: ${maxPhases}`, ``];
+	const phasesVerifiedAtStart = discoverPhases(ctx.cwd).filter((p) => ["done", "verified"].includes(p.status)).length;
+	let executedPhases = 0;
+
+	const runPlanningChild = async (label: string, prompt: string): Promise<boolean> => {
+		ctx.ui.setStatus("pi-factory", `🏭 planning ${label}`);
+		const result = await runPiJson(prompt, ctx.cwd, {
+			timeoutMs: DEFAULT_CHILD_TIMEOUT_MS,
+			idleTimeoutMs: DEFAULT_CHILD_IDLE_TIMEOUT_MS,
+			tools: "read,bash,edit,write",
+			maxTurns: DEFAULT_MAX_AGENT_TURNS,
+		});
+		log.push(`Planner: ${label}`, ``, `- Exit: ${result.exitCode}`, `- Stop reason: ${result.stopReason ?? "unknown"}`, ``, "```", (result.finalOutput || result.stderr || "(no output)").slice(-3000), "```", ``);
+		return result.exitCode === 0;
+	};
+
+	for (let step = 1; step <= maxSteps; step++) {
+		const action = nextActionText(ctx.cwd, { execute: true });
+		log.push(`## Step ${step}`, ``, `Action: \`${action}\``, ``);
+
+		if (action.startsWith("/pi-autoplan")) {
+			if (!autoPlanGoal) {
+				log.push(`Stopped: no project plan exists. Run \`/pi-auto-plan <goal>\` first, then \`/pi-run-all\`.`);
+				break;
+			}
+			ensureFactory(ctx.cwd, autoPlanGoal);
+			const ok = await runPlanningChild("autoplan", buildAutoPlanPrompt(autoPlanGoal));
+			if (!ok) {
+				log.push(`Stopped: autoplan child failed.`);
+				break;
+			}
+			continue;
+		}
+
+		if (action.startsWith("/pi-design-system")) {
+			const input = autoPlanGoal || path.basename(ctx.cwd);
+			ensureFactory(ctx.cwd, input);
+			const designPath = factoryPath(ctx.cwd, "DESIGN.md");
+			writeIfMissing(designPath, designScaffold(input));
+			const ok = await runPlanningChild("design-system", buildDesignSystemPrompt(ctx.cwd, input));
+			if (!ok) {
+				log.push(`Stopped: design-system child failed.`);
+				break;
+			}
+			continue;
+		}
+
+		if (action.startsWith("/pi-ui-phase")) {
+			const phaseId = action.split(/\s+/)[1];
+			const phase = findPhase(ctx.cwd, phaseId);
+			if (!phase) {
+				log.push(`Blocked: phase ${phaseId} not found.`);
+				break;
+			}
+			const specPath = path.join(phase.dir, "UI-SPEC.md");
+			writeIfMissing(specPath, uiSpecScaffold(phase));
+			const ok = await runPlanningChild(`ui-phase ${phase.id}`, buildUiPhasePrompt(ctx.cwd, phase, specPath));
+			if (!ok) {
+				log.push(`Stopped: UI phase child failed.`);
+				break;
+			}
+			continue;
+		}
+
+		if (action.startsWith("/pi-plan-phase")) {
+			const phaseId = action.split(/\s+/)[1];
+			const phase = findPhase(ctx.cwd, phaseId);
+			if (!phase) {
+				log.push(`Blocked: phase ${phaseId} not found.`);
+				break;
+			}
+			const ok = await runPlanningChild(`plan-phase ${phase.id}`, buildPlannerPrompt(phase, phaseId));
+			if (!ok) {
+				log.push(`Stopped: phase planning child failed.`);
+				break;
+			}
+			continue;
+		}
+
+		if (action.startsWith("/build-loop")) {
+			const before = discoverPhases(ctx.cwd).filter((p) => ["done", "verified"].includes(p.status)).length;
+			const args = action.replace(/^\/build-loop\s*/, "").trim();
+			await runBuildLoop(pi, ctx, args);
+			const after = discoverPhases(ctx.cwd).filter((p) => ["done", "verified"].includes(p.status)).length;
+			if (after > before) executedPhases += after - before;
+			log.push(`Ran \`${action}\`. Verified phases delta: ${after - before}.`);
+			if (executedPhases >= maxPhases) {
+				log.push(`Stopped: max phases reached.`);
+				break;
+			}
+			const next = nextActionText(ctx.cwd, { execute: true });
+			if (next === action && after === before) {
+				log.push(`Stopped: action did not advance. Check /pi-status and latest SUMMARY.md.`);
+				break;
+			}
+			continue;
+		}
+
+		log.push(`Finished or manual action required: \`${action}\`.`);
+		break;
+	}
+
+	ctx.ui.setStatus("pi-factory", undefined);
+	const phasesVerifiedNow = discoverPhases(ctx.cwd).filter((p) => ["done", "verified"].includes(p.status)).length;
+	log.push(``, `Finished: ${nowIso()}`, `Verified phases: ${phasesVerifiedAtStart} -> ${phasesVerifiedNow}`, `Next: \`${nextActionText(ctx.cwd)}\``);
+	pi.sendMessage({ customType: "pi-factory", content: log.join("\n"), display: true }, { triggerTurn: false });
+}
+
 const BuildLoopParams = Type.Object({
 	phase: Type.Optional(Type.String({ description: "Phase number or slug. If omitted, runs next executable phase." })),
 	maxPhases: Type.Optional(Type.Number({ description: "Maximum number of phases to execute.", default: DEFAULT_MAX_PHASES })),
@@ -2319,10 +2531,10 @@ export default function piFactory(pi: ExtensionAPI): void {
 		description: "Create or update .pi-factory/DESIGN.md design source of truth",
 		handler: async (args, ctx) => {
 			ensureFactory(ctx.cwd, args.trim());
+			const input = args.trim() || path.basename(ctx.cwd);
 			const designPath = factoryPath(ctx.cwd, "DESIGN.md");
-			writeIfMissing(designPath, designScaffold(args.trim() || path.basename(ctx.cwd)));
-			const prompt = `Use pi-gstack Design/DX and CEO/Product perspectives. Create or update ${path.relative(ctx.cwd, designPath)} as the product design source of truth.\n\nInput/context: ${args.trim() || "current project"}\n\nRead PROJECT.md, REQUIREMENTS.md, existing UI files, screenshots if available, and any existing DESIGN.md.\n\nOutput must cover: product personality, visual direction, typography, color, spacing/layout, components, copywriting, accessibility, and review gates. Ask concise questions only when required. Do not implement production code.`;
-			await commandSendOrDraft(pi, ctx, prompt, "Design system");
+			writeIfMissing(designPath, designScaffold(input));
+			await commandSendOrDraft(pi, ctx, buildDesignSystemPrompt(ctx.cwd, input), "Design system");
 		},
 	});
 
@@ -2338,8 +2550,7 @@ export default function piFactory(pi: ExtensionAPI): void {
 			}
 			const specPath = path.join(phase.dir, "UI-SPEC.md");
 			writeIfMissing(specPath, uiSpecScaffold(phase, parsed.positionals.slice(1).join(" ")));
-			const prompt = `Use pi-gstack Design/DX, QA/Security, and pi-superpowers planning discipline. Create/update the UI design contract for Phase ${phase.id} ${phase.name}.\n\nRead:\n- .pi-factory/DESIGN.md if present\n- .pi-factory/PROJECT.md\n- .pi-factory/REQUIREMENTS.md\n- ${path.relative(ctx.cwd, phase.contextPath)}\n- ${path.relative(ctx.cwd, phase.planPath)}\n- relevant UI files only\n\nWrite/update:\n- ${path.relative(ctx.cwd, specPath)}\n- ${path.relative(ctx.cwd, phase.planPath)} UI/UX contract section if needed\n\nUI-SPEC must include screens/routes/components, user flow, visual hierarchy, typography, color, spacing, states, responsive rules, accessibility, screenshot checkpoints, and acceptance criteria. Do not implement production code.`;
-			await commandSendOrDraft(pi, ctx, prompt, "UI phase contract");
+			await commandSendOrDraft(pi, ctx, buildUiPhasePrompt(ctx.cwd, phase, specPath), "UI phase contract");
 		},
 	});
 
@@ -2476,27 +2687,45 @@ export default function piFactory(pi: ExtensionAPI): void {
 
 	const autoplanHandler = async (args: string, ctx: ExtensionCommandContext) => {
 		ensureFactory(ctx.cwd, args.trim());
-		const prompt = `Use pi-gstack, pi-gsd, pi-superpowers, pi-frontend-ux, and pi-frontend-engineering. Run a Pi Factory autoplan for:
-
-${args.trim() || "the current project"}
-
-Process:
-1. Office-hours style product interrogation: identify goal, user, constraints, non-goals.
-2. CEO/Product review for scope.
-3. Engineering review for architecture and sequencing.
-4. Design/DX and QA review.
-5. If this touches UI/frontend and user gave no detailed visual direction, apply Pi Senior Frontend Default from ~/.pi/agent/design/SENIOR_FRONTEND_DEFAULT.md.
-6. For frontend code phases, apply ~/.pi/agent/design/FRONTEND_CODE_QUALITY.md and include explicit code quality contracts.
-7. Write/update .pi-factory/PROJECT.md, REQUIREMENTS.md, ROADMAP.md, STATE.md, and .pi-factory/DESIGN.md for UI projects.
-8. Create small phase directories under .pi-factory/phases with CONTEXT.md, PLAN.md, UI-SPEC.md for UI phases, and frontend review gates where enough information exists.
-
-Do not implement production code. End with next recommended command, usually /build-loop --dry-run.`;
-		await commandSendOrDraft(pi, ctx, prompt, "Autoplan");
+		await commandSendOrDraft(pi, ctx, buildAutoPlanPrompt(args.trim()), "Autoplan");
 	};
 
 	pi.registerCommand("pi-autoplan", {
 		description: "End-to-end brainstorm/spec/review/phase planning prompt",
 		handler: autoplanHandler,
+	});
+
+	pi.registerCommand("pi-auto-plan", {
+		description: "Alias for /pi-autoplan; create plan, then use /pi-run-all",
+		handler: autoplanHandler,
+	});
+
+	pi.registerCommand("pi-auto-next", {
+		description: "Execute the current /pi-next recommendation once",
+		handler: async (args, ctx) => {
+			await runPiNextAction(pi, ctx, args);
+		},
+	});
+
+	pi.registerCommand("pi-run-all", {
+		description: "Follow /pi-next automatically and run executable phases until complete or blocked",
+		handler: async (args, ctx) => {
+			await runPiRunAll(pi, ctx, args);
+		},
+	});
+
+	pi.registerCommand("pi-runall", {
+		description: "Alias for /pi-run-all",
+		handler: async (args, ctx) => {
+			await runPiRunAll(pi, ctx, args);
+		},
+	});
+
+	pi.registerCommand("run-all", {
+		description: "Alias for /pi-run-all",
+		handler: async (args, ctx) => {
+			await runPiRunAll(pi, ctx, args);
+		},
 	});
 
 	pi.registerCommand("pi-factory-start", {
