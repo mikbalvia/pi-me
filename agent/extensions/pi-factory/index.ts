@@ -1446,6 +1446,7 @@ function nextActionText(cwd: string, options: { execute?: boolean } = {}): strin
 	const active = phases.filter((p) => !["done", "verified"].includes(p.status));
 	const actionable = active.find((p) => p.status === "ready") ?? active.find((p) => p.status !== "planned" && p.hasPlan) ?? active.find((p) => p.hasPlan) ?? active.find((p) => !p.hasPlan || !p.hasContext);
 	if (!actionable) return "/pi-review current git diff or /pi-ship-review";
+	if (actionable.status === "ready") return `/build-loop ${actionable.id}`;
 	const check = checkPhaseReadiness(actionable);
 	if (!check.ready) return `/pi-plan-phase ${actionable.id}`;
 	if (hasLikelyUiFiles(cwd, actionable) && !exists(path.join(actionable.dir, "UI-SPEC.md"))) return `/pi-ui-phase ${actionable.id}`;
