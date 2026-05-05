@@ -1483,10 +1483,18 @@ function getPlanSection(plan: string, heading: string): string {
 	return out.join("\n").trim();
 }
 
+function projectRootForPhase(phase: PhaseInfo): string {
+	return path.dirname(path.dirname(path.dirname(phase.dir)));
+}
+
+function hasSection(plan: string, headings: string[]): boolean {
+	return headings.some((heading) => new RegExp(`^#{2,4}\s+${escapeRegExp(heading)}(?:\s|$)`, "im").test(plan));
+}
+
 function checkPhaseReadiness(phase: PhaseInfo): CheckResult {
 	const mustFix: string[] = [];
 	const shouldFix: string[] = [];
-	const cwd = path.dirname(path.dirname(phase.dir));
+	const cwd = projectRootForPhase(phase);
 	if (!phase.hasContext) mustFix.push("CONTEXT.md is missing.");
 	if (!phase.hasPlan) {
 		mustFix.push("PLAN.md is missing.");
@@ -1517,9 +1525,16 @@ function checkPhaseReadiness(phase: PhaseInfo): CheckResult {
 		if (!exists(uiSpecPath)) mustFix.push("UI phase lacks UI-SPEC.md. Run /pi-ui-phase before implementation.");
 		if (exists(uiSpecPath)) {
 			const spec = readText(uiSpecPath);
-			const criticalSections = ["Goal", "Visual hierarchy", "State contract", "Responsive contract", "Accessibility contract", "Acceptance criteria"];
+			const criticalSections = [
+				{ label: "Goal/Scope", headings: ["Goal", "Scope"] },
+				{ label: "Visual hierarchy", headings: ["Visual hierarchy"] },
+				{ label: "State contract/coverage", headings: ["State contract", "State coverage"] },
+				{ label: "Responsive contract/behavior", headings: ["Responsive contract", "Responsive behavior"] },
+				{ label: "Accessibility contract", headings: ["Accessibility contract", "Accessibility"] },
+				{ label: "Acceptance criteria", headings: ["Acceptance criteria", "Placeholder screen acceptance criteria", "Done criteria for UI spec"] },
+			];
 			for (const section of criticalSections) {
-				if (!new RegExp(`^#{2,4}\\s+${escapeRegExp(section)}`, "im").test(spec)) mustFix.push(`UI-SPEC.md missing ${section} section.`);
+				if (!hasSection(spec, section.headings)) mustFix.push(`UI-SPEC.md missing ${section.label} section.`);
 			}
 			if (/\bTBD\b/i.test(spec)) mustFix.push("UI-SPEC.md still contains TBD; replace with Pi Senior Frontend Default assumptions or explicit not-applicable reasons.");
 		}
