@@ -56,6 +56,9 @@ Sudah ada:
 - Operator UX layer:
   - `/pi-dashboard` interactive TUI overlay.
   - `/pi-next` next-best-action routing.
+  - `/pi-auto-next` one-step executor for the current `/pi-next` recommendation.
+  - `/pi-auto-plan` alias for autoplan with `/pi-run-all` as the recommended follow-up.
+  - `/pi-run-all` / `/run-all` auto-follow `/pi-next` and execute phases until complete or blocked.
   - `/pi-factory-wizard` guided setup.
 
 ## Current known behavior / gotchas
@@ -112,7 +115,16 @@ Manual override after review:
 
 ### All phases sequentially
 
-Default remains one phase. To run all remaining phases in order:
+For the easiest operator flow:
+
+```text
+/pi-auto-plan <goal>
+/pi-run-all
+```
+
+`/pi-run-all` follows `/pi-next`, creates missing planning/design artifacts through child Pi sessions when possible, executes ready phases with `/build-loop <phase>`, and stops when all phases are done or a blocker appears.
+
+Manual build-loop flow is still available:
 
 ```text
 /build-loop --dry-run --max-phases 6

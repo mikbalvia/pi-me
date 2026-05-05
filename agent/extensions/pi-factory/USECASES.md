@@ -4,11 +4,53 @@ Dokumen ini berisi contoh praktis memakai Pi Factory dari awal sampai automation
 
 > Dokumentasi utama: `~/.pi/agent/extensions/pi-factory/README.md`
 >
-> Catatan MVP 3: default aman masih aktif (`maxPhases=1`, `requireCheck=true`, `retries=0`, `maxAgentTurns=20`, child timeout 20 menit, idle timeout 5 menit), plus UI/UX layer: `DESIGN.md`, `UI-SPEC.md`, `/pi-sketch`, `/pi-design-review`, `/pi-dashboard`, `/pi-next`.
+> Catatan MVP 4: default aman masih aktif (`maxPhases=1`, `requireCheck=true`, `retries=0`, `maxAgentTurns=20`, child timeout 20 menit, idle timeout 5 menit), plus UI/UX/frontend engineering layer: `DESIGN.md`, `UI-SPEC.md`, `/pi-frontend-review`, `/pi-design-review`, `/pi-design-loop`, `/pi-dashboard`, `/pi-next`, dan automation shortcut `/pi-auto-plan` → `/pi-run-all`.
 
 ---
 
-## Use Case 0 — UI/UX workflow: design system → UI-SPEC → build → review
+## Use Case 0 — Auto workflow: auto-plan → run-all
+
+### Goal
+
+Mulai dari goal besar, biarkan Pi membuat `.pi-factory` plan lalu menjalankan next actions otomatis sampai semua phase selesai atau blocked.
+
+### Langkah
+
+```text
+/pi-auto-plan Improve the dashboard UI/UX: clearer hierarchy, better empty states, responsive layout, and polished visual system.
+```
+
+Setelah autoplan selesai membuat `.pi-factory/phases`, jalankan:
+
+```text
+/pi-run-all
+```
+
+Untuk membatasi automation:
+
+```text
+/pi-run-all --max-phases 2
+/pi-run-all --max-steps 20
+```
+
+Behavior expected:
+
+- Pi mengikuti `/pi-next` otomatis.
+- Jika perlu `DESIGN.md` atau `UI-SPEC.md`, Pi menjalankan planning/design child.
+- Jika phase ready, Pi menjalankan `/build-loop <phase>` langsung.
+- Frontend/UI phase tetap melewati `/pi-frontend-review` dan `/pi-design-review` gate via build-loop.
+- Stop jika verified semua, mencapai limit, atau blocked.
+
+Manual single-step helper:
+
+```text
+/pi-auto-next
+/pi-auto-next --execute
+```
+
+---
+
+## Use Case 0.1 — UI/UX workflow manual: design system → UI-SPEC → build → review
 
 ### Goal
 
@@ -107,16 +149,17 @@ Pastikan `.pi-factory/phases/01-create-hello-file/PLAN.md` punya verification co
 - `test -f hello.txt && grep -q hello hello.txt`
 ```
 
-Preview:
+Preview + run manual:
 
 ```text
 /build-loop --dry-run
+/build-loop
 ```
 
-Run:
+Atau otomatis mengikuti `/pi-next`:
 
 ```text
-/build-loop
+/pi-run-all
 ```
 
 Cek hasil:

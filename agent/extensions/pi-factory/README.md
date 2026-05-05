@@ -292,12 +292,13 @@ Efek:
 
 ---
 
-### 6.2 `/pi-autoplan`
+### 6.2 `/pi-autoplan` / `/pi-auto-plan`
 
 Autoplan end-to-end: brainstorm, product review, engineering review, QA review, lalu menyusun artifacts dan phase.
 
 ```text
 /pi-autoplan <idea atau goal>
+/pi-auto-plan <idea atau goal>
 ```
 
 Alias:
@@ -309,7 +310,7 @@ Alias:
 Contoh:
 
 ```text
-/pi-autoplan Add password reset with OTP email, rate limiting, and audit logs
+/pi-auto-plan Add password reset with OTP email, rate limiting, and audit logs
 ```
 
 Output yang diharapkan:
@@ -318,7 +319,80 @@ Output yang diharapkan:
 - `.pi-factory/REQUIREMENTS.md` diperbarui.
 - `.pi-factory/ROADMAP.md` diperbarui.
 - Phase kecil dibuat di `.pi-factory/phases/`.
+- UI project mendapat `.pi-factory/DESIGN.md` dan phase `UI-SPEC.md` bila relevan.
+- Phase frontend mendapat frontend code quality contract dan review gates.
 - Agent tidak langsung coding.
+- Final recommendation diarahkan ke `/pi-run-all`.
+
+Recommended flow setelah autoplan selesai:
+
+```text
+/pi-run-all
+```
+
+---
+
+### 6.2.1 `/pi-auto-next` dan `/pi-run-all`
+
+Command ini menghilangkan kebutuhan copy-paste rekomendasi `/pi-next` secara manual.
+
+#### `/pi-auto-next`
+
+Menjalankan rekomendasi `/pi-next` satu langkah.
+
+```text
+/pi-auto-next
+```
+
+Default tetap menghormati dry-run jika `/pi-next` merekomendasikan dry-run. Untuk langsung menjalankan phase ready:
+
+```text
+/pi-auto-next --execute
+```
+
+#### `/pi-run-all`
+
+Mengikuti `/pi-next` otomatis sampai selesai atau blocked.
+
+```text
+/pi-run-all
+```
+
+Alias:
+
+```text
+/pi-runall
+/run-all
+```
+
+Behavior:
+
+- Jika `.pi-factory` belum ada dan goal diberikan, membuat autoplan child dulu.
+- Jika design system atau UI-SPEC masih diperlukan, menjalankan planning/design child otomatis.
+- Jika phase ready, menjalankan `/build-loop <phase>` langsung, bukan dry-run.
+- Lanjut phase berikutnya sampai semua `verified/done`, mencapai limit, atau blocked.
+- Tetap memakai gates: readiness, verification, safety audit, frontend review, UI design review.
+
+Options:
+
+| Option | Fungsi |
+|---|---|
+| `--max-phases N` | Batasi jumlah phase yang boleh dieksekusi dalam satu `/pi-run-all`. |
+| `--max-steps N` | Batasi jumlah routing step internal. Default `50`. |
+
+Contoh:
+
+```text
+/pi-run-all --max-phases 3
+/pi-run-all --max-steps 20
+```
+
+Minimal two-command flow:
+
+```text
+/pi-auto-plan <goal>
+/pi-run-all
+```
 
 ---
 
@@ -1104,6 +1178,14 @@ Jika config invalid JSON, `/build-loop` berhenti dengan pesan jelas.
 ### Workflow aman untuk feature baru
 
 ```text
+/pi-auto-plan <feature idea>
+/pi-run-all
+/pi-status
+```
+
+Jika ingin kontrol manual:
+
+```text
 /pi-autoplan <feature idea>
 /pi-status
 /pi-review .pi-factory/ROADMAP.md
@@ -1112,13 +1194,7 @@ Jika config invalid JSON, `/build-loop` berhenti dengan pesan jelas.
 /pi-status
 ```
 
-Jika phase 1 verified:
-
-```text
-/build-loop
-```
-
-Ulangi sampai semua phase verified.
+Jika phase 1 verified, jalankan `/build-loop` lagi atau gunakan `/pi-run-all` untuk lanjut otomatis.
 
 ---
 
@@ -1153,7 +1229,7 @@ Ulangi sampai semua phase verified.
 /pi-ship-review
 ```
 
-Gunakan `/pi-next` atau `/pi-dashboard` jika bingung next action.
+Gunakan `/pi-next` atau `/pi-dashboard` jika bingung next action. Gunakan `/pi-run-all` jika ingin Pi mengikuti next action otomatis.
 
 ---
 
@@ -1230,8 +1306,8 @@ Tips:
 
 ## 14. Best Practices
 
-1. **Selalu mulai dengan `/build-loop --dry-run`.**
-2. **Jangan run terlalu banyak phase sekaligus di awal.** Default `maxPhases=1`; untuk all phases pakai `--max-phases N` setelah dry-run.
+1. **Untuk workflow manual, mulai dengan `/build-loop --dry-run`.** Untuk workflow otomatis setelah autoplan, gunakan `/pi-run-all`.
+2. **Jangan run terlalu banyak phase sekaligus di awal.** Default `build-loop` adalah `maxPhases=1`; untuk `/pi-run-all`, batasi dengan `--max-phases N` jika scope besar.
 3. **Gunakan verification command eksplisit/structured di PLAN.md.**
 4. **Gunakan git branch/checkpoint.** Commit baseline agar safety audit tidak menghitung semua file sebagai changed/untracked.
 5. **Review plan sebelum execution:**
