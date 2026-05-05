@@ -630,43 +630,52 @@ function addVerificationStep(steps: VerificationStep[], command: string, line: s
 
 function extractMachineReadableVerification(plan: string): VerificationStep[] {
 	const steps: VerificationStep[] = [];
-	const yamlBlock = plan.match(/```(?:ya?ml)\s*\n([\s\S]*?)\n```/i);
-	if (!yamlBlock || !/verification\s*:/i.test(yamlBlock[1])) return steps;
-	const lines = yamlBlock[1].split(/\r?\n/);
-	let inVerification = false;
-	let current: Partial<VerificationStep> = {};
-	const flush = () => {
-		if (current.command) addVerificationStep(steps, current.command, "machine-readable verification", current);
-		current = {};
-	};
-	for (const line of lines) {
-		if (/^\s*verification\s*:\s*$/.test(line)) {
-			inVerification = true;
-			continue;
+	const blocks = [...plan.matchAll(/```(?:ya?ml)\s*\n([\s\S]*?)\n```/gi)].map((match) => match[1]).filter((block) => /verification\s*:/i.test(block));
+	if (!blocks.length) return steps;
+	for (const block of blocks) {
+		const lines = block.split(/\r?\n/);
+		let inVerification = false;
+		let verificationIndent = 0;
+		let current: Partial<VerificationStep> = {};
+		const flush = () => {
+			if (current.command) addVerificationStep(steps, current.command, "machine-readable verification", current);
+			current = {};
+		};
+		for (const line of lines) {
+			const verificationMatch = line.match(/^(\s*)verification\s*:\s*$/);
+			if (verificationMatch) {
+				flush();
+				inVerification = true;
+				verificationIndent = verificationMatch[1].length;
+				continue;
+			}
+			if (inVerification) {
+				const topLevel = line.match(/^(\s*)[A-Za-z_][\w-]*\s*:/);
+				if (topLevel && topLevel[1].length <= verificationIndent) {
+					flush();
+					inVerification = false;
+				}
+			}
+			if (!inVerification) continue;
+			const commandStart = line.match(/^\s*-\s*command\s*:\s*(.+?)\s*$/);
+			if (commandStart) {
+				flush();
+				current.command = commandStart[1].replace(/^['"]|['"]$/g, "");
+				current.optional = false;
+				current.source = line.trim();
+				continue;
+			}
+			const prop = line.match(/^\s+(required|optional|timeoutMs|timeout|skip_if_missing_npm_script|skipIfMissingNpmScript)\s*:\s*(.+?)\s*$/);
+			if (!prop) continue;
+			const key = prop[1];
+			const value = prop[2].replace(/^['"]|['"]$/g, "");
+			if (key === "required") current.optional = !parseBooleanish(value, true);
+			else if (key === "optional") current.optional = parseBooleanish(value, false);
+			else if (key === "timeoutMs" || key === "timeout") current.timeoutMs = parseTimeoutMs(value);
+			else current.skipIfMissingNpmScript = value;
 		}
-		if (inVerification && /^\S/.test(line) && !/^verification\s*:/.test(line)) {
-			flush();
-			inVerification = false;
-		}
-		if (!inVerification) continue;
-		const commandStart = line.match(/^\s*-\s*command\s*:\s*(.+?)\s*$/);
-		if (commandStart) {
-			flush();
-			current.command = commandStart[1].replace(/^['"]|['"]$/g, "");
-			current.optional = false;
-			current.source = line.trim();
-			continue;
-		}
-		const prop = line.match(/^\s+(required|optional|timeoutMs|timeout|skip_if_missing_npm_script|skipIfMissingNpmScript)\s*:\s*(.+?)\s*$/);
-		if (!prop) continue;
-		const key = prop[1];
-		const value = prop[2].replace(/^['"]|['"]$/g, "");
-		if (key === "required") current.optional = !parseBooleanish(value, true);
-		else if (key === "optional") current.optional = parseBooleanish(value, false);
-		else if (key === "timeoutMs" || key === "timeout") current.timeoutMs = parseTimeoutMs(value);
-		else current.skipIfMissingNpmScript = value;
+		flush();
 	}
-	flush();
 	return steps;
 }
 
